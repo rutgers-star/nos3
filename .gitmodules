@@ -1,0 +1,165 @@
+[submodule "fsw/apps/ci"]
+	path = fsw/apps/ci
+	url = https://github.com/nasa-itc/CFS_CI.git
+[submodule "fsw/apps/to"]
+	path = fsw/apps/to
+	url = https://github.com/nasa-itc/CFS_TO.git
+[submodule "fsw/apps/io_lib"]
+	path = fsw/apps/io_lib
+	url = https://github.com/nasa-itc/CFS_IO_LIB.git
+[submodule "fsw/cfe"]
+	path = fsw/cfe
+	url = https://github.com/nasa-itc/cFE.git
+[submodule "fsw/osal"]
+	path = fsw/osal
+	url = https://github.com/nasa-itc/osal.git
+[submodule "fsw/psp"]
+	path = fsw/psp
+	url = https://github.com/nasa-itc/PSP.git
+[submodule "fsw/tools/elf2cfetbl"]
+	path = fsw/tools/elf2cfetbl
+	url = https://github.com/nasa-itc/elf2cfetbl.git
+[submodule "fsw/apps/sch"]
+	path = fsw/apps/sch
+	url = https://github.com/nasa-itc/SCH.git
+[submodule "fsw/apps/sc"]
+	path = fsw/apps/sc
+	url = https://github.com/nasa-itc/SC.git
+[submodule "fsw/apps/cf"]
+	path = fsw/apps/cf
+	url = https://github.com/nasa-itc/CF.git
+[submodule "fsw/apps/lc"]
+	path = fsw/apps/lc
+	url = https://github.com/nasa-itc/LC.git
+[submodule "sims/nos_time_driver"]
+	path = sims/nos_time_driver
+	url = https://github.com/nasa-itc/nos_time_driver.git
+[submodule "sims/sim_common"]
+	path = sims/sim_common
+	url = https://github.com/nasa-itc/sim_common.git
+[submodule "sims/sim_terminal"]
+	path = sims/sim_terminal
+	url = https://github.com/nasa-itc/sim_terminal.git
+[submodule "gsw/OrbitInviewPowerPrediction"]
+	path = gsw/OrbitInviewPowerPrediction
+	url = https://github.com/nasa-itc/OrbitInviewPowerPrediction.git
+[submodule "gsw/cosmos"]
+	path = gsw/cosmos
+	url = https://github.com/nasa-itc/gsw-cosmos.git
+	branch = main
+[submodule "sims/truth_42_sim"]
+	path = sims/truth_42_sim
+	url = https://github.com/nasa-itc/truth_42_sim.git
+[submodule "fsw/apps/ci_lab"]
+	path = fsw/apps/ci_lab
+	url = https://github.com/nasa-itc/ci_lab.git
+	branch = nos3-main
+[submodule "fsw/apps/to_lab"]
+	path = fsw/apps/to_lab
+	url = https://github.com/nasa-itc/to_lab.git
+	branch = nos3-main
+[submodule "fsw/apps/hwlib"]
+	path = fsw/apps/hwlib
+	url = https://github.com/nasa-itc/hwlib.git
+	branch = master
+[submodule "components/arducam"]
+	path = components/arducam
+	url = https://github.com/nasa-itc/arducam.git
+	branch = master
+[submodule "components/generic_reaction_wheel"]
+	path = components/generic_reaction_wheel
+	url = https://github.com/nasa-itc/generic_reaction_wheel.git
+	branch = master
+[submodule "components/sample"]
+	path = components/sample
+	url = https://github.com/nasa-itc/sample.git
+	branch = master
+[submodule "components/novatel_oem615"]
+	path = components/novatel_oem615
+	url = https://github.com/nasa-itc/novatel_oem615.git
+	branch = master
+[submodule "fsw/apps/ds"]
+	path = fsw/apps/ds
+	url = https://github.com/nasa-itc/DS.git
+	branch = nos3-main
+[submodule "fsw/apps/fm"]
+	path = fsw/apps/fm
+	url = https://github.com/nasa-itc/FM.git
+	branch = nos3-main
+[submodule "components/generic_fss"]
+	path = components/generic_fss
+	url = https://github.com/nasa-itc/generic_fss.git
+	branch = main
+[submodule "components/generic_css"]
+	path = components/generic_css
+	url = https://github.com/nasa-itc/generic_css.git
+	branch = main
+[submodule "components/generic_eps"]
+	path = components/generic_eps
+	url = https://github.com/nasa-itc/generic_eps.git
+	branch = main
+[submodule "components/generic_torquer"]
+	path = components/generic_torquer
+	url = https://github.com/nasa-itc/generic_torquer.git
+	branch = main
+[submodule "components/generic_radio"]
+	path = components/generic_radio
+	url = https://github.com/nasa-itc/generic_radio.git
+	branch = main
+[submodule "components/generic_imu"]
+	path = components/generic_imu
+	url = https://github.com/nasa-itc/generic_imu.git
+	branch = main
+[submodule "components/generic_mag"]
+	path = components/generic_mag
+	url = https://github.com/nasa-itc/generic_magnetometer.git
+	branch = main
+[submodule "components/cryptolib"]
+	path = components/cryptolib
+	url = https://github.com/nasa/CryptoLib.git
+	branch = main
+[submodule "components/generic_adcs"]
+	path = components/generic_adcs
+	url = https://github.com/nasa-itc/generic_adcs.git
+[submodule "components/generic_star_tracker"]
+	path = components/generic_star_tracker
+	url = https://github.com/nasa-itc/generic_star_tracker.git
+[submodule "components/syn"]
+	path = components/syn
+	url = https://github.com/nasa-itc/syn.git
+	branch = main
+[submodule "fsw/apps/sbn"]
+	path = fsw/apps/sbn
+	url = https://github.com/nasa-itc/SBN.git
+[submodule "sbn_client"]
+	path = fsw/apps/sbn_client
+	url = https://github.com/nasa-itc/SBN-Client.git
+[submodule "components/onair/fsw"]
+	path = components/onair/fsw
+	url = https://github.com/nasa-itc/OnAIR.git
+	branch = main
+[submodule "gsw/ait"]
+	path = gsw/ait
+	url = https://github.com/sphinxdefense/gsw-ait.git
+	branch = main
+[submodule "gsw/ttc-command"]
+	path = gsw/ttc-command
+	url = https://github.com/sphinxdefense/ttc-command
+	branch = main
+[submodule "components/generic_thruster"]
+	path = components/generic_thruster
+	url = https://github.com/nasa-itc/generic_thruster.git
+[submodule "fsw/fprime/fprime-nos3"]
+	path = fsw/fprime/fprime-nos3
+	url = https://github.com/nasa-itc/fprime-nos3.git
+[submodule "components/mgr"]
+	path = components/mgr
+	url = https://github.com/nasa-itc/mgr.git
+	branch = main
+[submodule "components/blackboard"]
+	path = components/blackboard
+	url = https://github.com/nasa-itc/blackboard
+[submodule "gsw/yamcs"]
+	path = gsw/yamcs
+	url = https://github.com/nasa-itc/nos3_yamcs_master.git
+	branch = nos3-dev

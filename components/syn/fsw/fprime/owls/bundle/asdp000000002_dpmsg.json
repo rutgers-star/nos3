@@ -1,0 +1,7 @@
+{
+  "instrument_name": "owls",
+  "dp_type": "helm",
+  "dp_uri": "asdp000000002.tgz",
+  "meta_uri": "asdp000000002_meta.json",
+  "meta_usage": true
+}

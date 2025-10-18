@@ -1,0 +1,27 @@
+default:
+
+    logging:
+        name:     ait
+        hostname: localhost
+
+    cmddict:
+        filename:  cmd.yaml
+
+    tlmdict:
+        filename:  tlm.yaml
+
+    server:
+        plugins: []
+
+        inbound-streams:
+
+            - stream:
+                name: telem_stream
+                input:
+                    - "UDP"
+                    - "nos_fsw"
+                    - 5013
+                handlers:
+                    - name: gswait.handlers.CCSDSPacketHandler
+                      packet_types: {'XXXXXXXXXXXX': "CCSDS_HEADER"}
+

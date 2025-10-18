@@ -1,0 +1,24 @@
+Number of experiment frames: 451
+Frame dimensions: 2048 x 2048
+
+Loading errors:                  0 unreadable hologram images (0.00 %)
+Repeated hologram images:        0 duplicate hologram images (0.00 %)
+Dropped hologram images:         0 dropped hologram images (0.00 %)
+
+Mean intensity within expected bounds: True
+Mean frame difference within expected bounds: True
+Mean density within expected bounds: True
+Fourier spectrum passed validation checks: False
+
+Data Quality Estimate: 0.9199999999999999
+
+Per-image (and not per-pixel) statistics:
+Intensity mean:                      29.9208
+Intensity stddev:                     0.1718
+Intensity min:                       29.5125
+Intensity max:                       30.4901
+Intensity change (diff) mean:         0.5175
+Intensity change (diff) stddev:       0.0152
+Intensity change (diff) min:          0.4910
+Intensity change (diff) max:          0.6406
+Density mean:                         0.0000

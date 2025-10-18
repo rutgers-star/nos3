@@ -1,0 +1,15 @@
+{
+  "science_utility_estimate": 0.14227810087647624,
+  "priority_bin": 2,
+  "metadata": {
+    "bbox_area_min_pc10.0": 0.07886666666666667,
+    "bbox_area_min_pc50.0": 0.1111111111111111,
+    "bbox_area_min_pc90.0": 0.1111111111111111,
+    "disp_e2e_norm_pc10.0": 0.001436325965583461,
+    "disp_e2e_norm_pc50.0": 0.007030396384051943,
+    "disp_e2e_norm_pc90.0": 0.03710894689341319,
+    "speed_mean_pc10.0": 0.02807966286652037,
+    "speed_mean_pc50.0": 0.051721862980167836,
+    "speed_mean_pc90.0": 0.09503929215686009
+  }
+}

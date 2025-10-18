@@ -1,0 +1,27 @@
+services:
+  ttccore:
+    container_name: gsw-ait
+    platform: linux/amd64
+    build:
+      context: .
+    environment:
+      LOG_LEVEL: INFO
+    ports:
+      - "8080:8080"
+
+  # telem:
+  #   container_name: telem
+  #   platform: linux/amd64
+  #   image: 053166900151.dkr.ecr.us-gov-west-1.amazonaws.com/telemetry_service:v0.3.1
+  #   depends_on: [ttccore]
+  #   networks:
+  #     - ttc
+  #   ports:
+  #     - "24000:24000"
+  #     - "24001:24001"
+
+
+# networks:
+#   ttc:
+#     name: ttc
+#     #external: true

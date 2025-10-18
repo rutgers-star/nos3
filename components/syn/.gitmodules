@@ -1,0 +1,4 @@
+[submodule "synopsis"]
+	path = synopsis
+	url = https://github.com/nasa-itc/synopsis.git
+	branch = main

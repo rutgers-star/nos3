@@ -1,0 +1,26 @@
+variables:
+  GIT_CONFIG_PARAMETERS: "'url.https://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}/.insteadof=git@${CI_SERVER_HOST}:' 'url.https://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}/.insteadof=ssh://git@${CI_SERVER_HOST}/'"
+  GIT_SUBMODULE_STRATEGY: recursive
+  PYTHONPATH: src
+  RUN_PATH: src/test
+  RESULTS_PATH: src/test/results
+
+test-onair:
+  tags:
+    - app-builder
+  image: aetd-dockerlab.gsfc.nasa.gov/spar-lab/onair/onair-meta
+  stage: test
+  script:
+    - python3.11 -m pip install -r requirements_pip.txt
+    - pwd
+    - python3.11 driver.py -t
+    - coverage report    
+    - coverage xml
+  coverage: '/(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'
+  artifacts:
+  #  paths:
+  #    - cfs_fsw/build-sim/*
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml

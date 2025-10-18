@@ -1,0 +1,51 @@
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+name         = 'gswait'
+version      = '0.0.0'
+description  = "AIT groundstation server for nos3"
+authors       = ['Cameron Jackson']
+
+packages = [
+    {include = "gswait"}
+]
+
+[tool.poetry.dependencies]
+python           = '>= 3.8 < 3.11'
+bottle           = '0.12.23'
+jsonschema       = '3.0.2'
+pyyaml           = '5.3.1'  # Temporarily pinning this to 5.3.1 because pyyaml and Cython 3 don't get along
+requests         = '>= 2.22.0'
+greenlet         = '1.1.3'
+gevent           = '*'
+gevent-websocket = '0.10.1'
+pyzmq            = '24.0.0'
+gipc             = "^1.1.0"
+setproctitle     = "^1.2.3"
+ait-core         = { git = "https://github.com/cjjacks/AIT-Core.git", branch = "issue-517" }
+
+[tool.poetry.dev-dependencies]
+black                     = '*'
+flake8                    = '*'
+pyproject-flake8          = '^0.0.1-alpha.2'
+flake8-bugbear            = '*'
+pep8-naming               = '*'
+mypy                      = '*'
+types-PyYAML              = '*'
+types-requests            = '*'
+types-setuptools          = '*'
+pydocstyle                = '*'
+coverage                  = '*'
+pytest                    = '*'
+pytest-cov                = '*'
+pytest-watch              = '*'
+pytest-xdist              = '*'
+pre-commit                = '*'
+sphinx                    = '>= 4.2'
+sphinx-rtd-theme          = '*'
+sphinxcontrib-httpdomain  = '*'
+tox                       = '>= 3.8 < 4.0'
+twine                     = '^3.4.2'
+
