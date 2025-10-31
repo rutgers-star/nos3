@@ -79,6 +79,19 @@ make clean-sim                 # Clean simulators only
 make clean-gsw                 # Clean ground software only
 ```
 
+### Custom Configuration
+You can use alternative spacecraft configurations with the `SC1_CFG` variable:
+```bash
+# Use minimal configuration
+make config SC1_CFG=spacecraft/sc-minimal-config.xml
+
+# Use F Prime configuration
+make config SC1_CFG=spacecraft/sc-fprime-config.xml
+
+# Use research configuration
+make config SC1_CFG=spacecraft/sc-research-config.xml
+```
+
 ### Testing Commands
 ```bash
 make build-test               # Build unit tests
@@ -97,7 +110,24 @@ make debug                    # Launch debug terminal
 make checkout                 # Run checkout application
 make cosmos-operator          # Launch with COSMOS GUI
 make yamcs-operator          # Launch with YAMCS GUI
+make log                      # View system logs
 ```
+
+### Help and Documentation
+```bash
+make help                     # Display basic help
+make help-all                 # Display comprehensive help with all targets
+```
+
+The Makefile includes inline documentation for all targets. Use `make help-all` to see all available options including advanced setup targets like `prep-gsw`, `prep-sat`, `start-gsw`, and `start-sat`.
+
+### Configuration GUI (Igniter)
+NOS3 includes a graphical configuration tool called Igniter:
+```bash
+make igniter                  # Launch configuration GUI
+```
+
+Igniter provides a GUI for editing mission and spacecraft configurations. It requires Python 3 with PySide6 and xmltodict packages (installed by `make prep`).
 
 ## Architecture
 
@@ -144,9 +174,17 @@ The mission is configured through XML files in the `cfg/` directory. The main co
 
 Configuration is applied via `make config` which generates build artifacts in `cfg/build/`.
 
+**Available Spacecraft Configurations:**
+- `sc-mission-config.xml` - Full mission configuration (default)
+- `sc-minimal-config.xml` - Minimal set of components
+- `sc-fprime-config.xml` - F Prime flight software configuration
+- `sc-research-config.xml` - Research-oriented configuration
+
+The spacecraft configuration XML controls which cFS applications and hardware components are enabled for the mission.
+
 ### Build System
 
-NOS3 uses a multi-stage build system:
+NOS3 uses a multi-stage build system that runs inside Docker containers:
 1. **Configuration** - Processes XML configs and generates build files
 2. **FSW Build** - CMake-based build for cFS or fprime-util for F Prime
 3. **Sim Build** - CMake build for simulators
@@ -154,9 +192,15 @@ NOS3 uses a multi-stage build system:
 
 Build directories:
 - `fsw/build/` - Flight software build artifacts
-- `sims/build/` - Simulator build artifacts  
+- `sims/build/` - Simulator build artifacts
 - `gsw/build/` - Ground software build artifacts
 - `cfg/build/` - Configuration build artifacts
+
+**Important Build Notes:**
+- All builds run in Docker containers using the `ivvitc/nos3-64:20250514` image
+- Build scripts are in `scripts/` directory and are invoked by Makefile targets
+- FSW builds use CMake with custom `ComponentSettings.cmake` for compiler flags
+- F Prime builds use `fprime-util` instead of CMake
 
 ### Component Architecture
 
@@ -191,10 +235,52 @@ Tables are defined in `cfg/nos3_defs/tables/`. After modifications:
 3. View results in `fsw/build/amd64-posix/default_cpu1/`
 
 ### Debugging
-- Use `make debug` to launch debug container
+- Use `make debug` to launch debug container (opens interactive Docker shell)
 - GDB can attach to running FSW processes
 - Simulator logs are in `sims/build/`
 - FSW logs depend on configuration (cFS uses syslog by default)
+
+### Working with Individual Components
+Each component in `components/` contains:
+- `fsw/cfs/` - cFS application implementation
+- `fsw/fprime/` - F Prime component implementation (if available)
+- `sim/` - Hardware simulator implementation
+- `gsw/` - Ground software integration (if applicable)
+
+Component structure example (`components/generic_adcs/`):
+```
+generic_adcs/
+├── fsw/
+│   ├── cfs/          # cFS app for ADCS
+│   └── fprime/       # F Prime component for ADCS
+├── gsw/              # Ground software files
+└── sim/              # ADCS hardware simulator
+```
+
+## Important Environment Details
+
+### Build Environment Variables
+Key environment variables set in `scripts/env.sh`:
+- `DBOX` - Docker image name (`ivvitc/nos3-64:20250514`)
+- `BASE_DIR` - Repository root directory
+- `FSW_DIR` - Flight software build directory
+- `SIM_DIR` - Simulator build directory
+- `USER_NOS3_DIR` - User's `~/.nos3` directory for 42 simulator and other tools
+
+### Directory Ownership and Permissions
+- The `~/.nos3` directory is created by `make prep` and stores:
+  - 42 dynamics simulator (`~/.nos3/42/`)
+  - COSMOS configuration (`~/.nos3/cosmos/`)
+- Build artifacts in `fsw/build/`, `sims/build/`, and `gsw/build/` are created by Docker containers
+- With rootless Podman, files are owned by your user; with Docker, may be owned by root
+
+### Configuration Workflow
+When you run `make config`:
+1. Copies baseline configs to `cfg/build/`
+2. Processes `nos3-mission.xml` and spacecraft config XML
+3. Generates cFS definitions in `cfg/build/nos3_defs/`
+4. Creates launch scripts in `cfg/build/`
+5. Saves the config path to `cfg/build/current_config_path.txt`
 
 ## Troubleshooting
 
@@ -227,3 +313,23 @@ Tables are defined in `cfg/nos3_defs/tables/`. After modifications:
 ```bash
 git submodule update --init --recursive
 ```
+
+### When to reconfigure and rebuild
+
+After making these changes, you MUST run `make config` (and possibly rebuild):
+
+**Requires `make config`:**
+- Modifying `nos3-mission.xml` (FSW/GSW type, spacecraft count)
+- Modifying spacecraft configuration XML (enabling/disabling components)
+- Switching between configuration profiles (using `SC1_CFG`)
+- Changing cFS definitions in `cfg/nos3_defs/`
+
+**Requires `make clean-fsw && make config && make fsw`:**
+- Modifying cFS table definitions in `cfg/nos3_defs/tables/`
+- Adding/removing cFS applications
+- Changing component configurations
+
+**Requires full rebuild (`make clean && make all`):**
+- Major configuration changes
+- Docker image updates
+- Switching between cFS and F Prime

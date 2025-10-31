@@ -1,0 +1,39 @@
+<simulator>
+    <name>heater_sim</name>
+    <active>true</active>
+    <library>libheater_sim.so</library>
+    <hardware-model>
+        <type>HEATER</type>
+        <connections>
+            <connection>
+                <type>command</type>
+                <bus-name>command</bus-name>
+                <node-name>heater-sim-command-node</node-name>
+            </connection>
+            <connection>
+                <type>time</type>
+                <bus-name>command</bus-name>
+                <node-name>heater-time-node</node-name>
+            </connection>
+            <connection>
+                <type>i2c</type>
+                <bus-name>i2c_3</bus-name>
+                <bus-address>0x49</bus-address>
+            </connection>
+        </connections>
+        <data-provider>
+            <type>HEATER_PROVIDER</type>
+        </data-provider>
+        <physical>
+            <!-- Turbo Flex heater 220362 specifications -->
+            <power-watts>31.4</power-watts>
+            <voltage>12.0</voltage>
+            <current>2.62</current>
+            <max-temperature>125.0</max-temperature>
+            <!-- Heating rate: 2°C/min = 0.0333°C/sec -->
+            <heating-rate-celsius-per-sec>0.0333</heating-rate-celsius-per-sec>
+            <!-- Cooling rate: 0.5°C/min = 0.00833°C/sec -->
+            <cooling-rate-celsius-per-sec>0.00833</cooling-rate-celsius-per-sec>
+        </physical>
+    </hardware-model>
+</simulator>

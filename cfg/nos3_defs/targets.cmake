@@ -124,6 +124,7 @@ list(APPEND MISSION_GLOBAL_APPLIST
         sample/fsw/cfs
         syn/fsw/cfs
         tmp100/fsw/cfs
+        thermal_control/fsw/cfs
 )
 
 # Create Application Platform Include List

@@ -48,9 +48,9 @@
                         <hex-status>00AA</hex-status>
                     </switch-0>
                     <switch-1>
-                        <node-name>unknown-sim-command-node</node-name>
-                        <voltage>3.30</voltage>
-                        <current>0.25</current>
+                        <node-name>heater-sim-command-node</node-name>
+                        <voltage>12.00</voltage>
+                        <current>2.62</current>
                         <hex-status>0000</hex-status>
                     </switch-1>
                     <switch-2>
