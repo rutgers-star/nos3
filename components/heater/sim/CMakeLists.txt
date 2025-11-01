@@ -4,9 +4,11 @@ find_package(Boost REQUIRED QUIET COMPONENTS system filesystem)
 find_package(ITC_Common REQUIRED QUIET COMPONENTS itc_logger)
 find_package(NOSENGINE REQUIRED QUIET COMPONENTS common transport client i2c)
 
-include_directories(SYSTEM ${Boost_INCLUDE_DIRS})
-include_directories(SYSTEM ${ITC_Common_INCLUDE_DIRS})
-include_directories(SYSTEM ${NOSENGINE_INCLUDE_DIRS})
+include_directories(inc
+                    ${sim_common_SOURCE_DIR}/inc
+                    ${ITC_Common_INCLUDE_DIRS}
+                    ${NOSENGINE_INCLUDE_DIRS}
+                    ${Boost_INCLUDE_DIRS})
 
 set(heater_sim_src
     ${CMAKE_CURRENT_SOURCE_DIR}/src/heater_hardware_model.cpp

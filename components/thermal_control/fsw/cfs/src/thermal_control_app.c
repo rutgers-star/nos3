@@ -210,7 +210,7 @@ void THERMAL_ProcessCommandPacket(void)
 {
     CFE_SB_MsgId_t MsgId = CFE_SB_INVALID_MSG_ID;
 
-    CFE_MSG_GetMsgId(THERMAL_AppData.MsgPtr, &MsgId);
+    CFE_MSG_GetMsgId(&THERMAL_AppData.MsgPtr->Msg, &MsgId);
 
     switch (CFE_SB_MsgIdToValue(MsgId))
     {
@@ -241,12 +241,12 @@ void THERMAL_ProcessGroundCommand(void)
 {
     CFE_MSG_FcnCode_t CommandCode = 0;
 
-    CFE_MSG_GetFcnCode(THERMAL_AppData.MsgPtr, &CommandCode);
+    CFE_MSG_GetFcnCode(&THERMAL_AppData.MsgPtr->Msg, &CommandCode);
 
     switch (CommandCode)
     {
         case THERMAL_NOOP_CC:
-            if (THERMAL_VerifyCmdLength(THERMAL_AppData.MsgPtr, sizeof(THERMAL_NoArgs_cmd_t)))
+            if (THERMAL_VerifyCmdLength(&THERMAL_AppData.MsgPtr->Msg, sizeof(THERMAL_NoArgs_cmd_t)))
             {
                 THERMAL_AppData.CmdCounter++;
                 CFE_EVS_SendEvent(THERMAL_COMMANDNOP_INF_EID, CFE_EVS_EventType_INFORMATION,
@@ -255,14 +255,14 @@ void THERMAL_ProcessGroundCommand(void)
             break;
 
         case THERMAL_RESET_COUNTERS_CC:
-            if (THERMAL_VerifyCmdLength(THERMAL_AppData.MsgPtr, sizeof(THERMAL_NoArgs_cmd_t)))
+            if (THERMAL_VerifyCmdLength(&THERMAL_AppData.MsgPtr->Msg, sizeof(THERMAL_NoArgs_cmd_t)))
             {
                 THERMAL_ResetCounters();
             }
             break;
 
         case THERMAL_ENABLE_CC:
-            if (THERMAL_VerifyCmdLength(THERMAL_AppData.MsgPtr, sizeof(THERMAL_NoArgs_cmd_t)))
+            if (THERMAL_VerifyCmdLength(&THERMAL_AppData.MsgPtr->Msg, sizeof(THERMAL_NoArgs_cmd_t)))
             {
                 THERMAL_EnableControl();
                 THERMAL_AppData.CmdCounter++;
@@ -270,7 +270,7 @@ void THERMAL_ProcessGroundCommand(void)
             break;
 
         case THERMAL_DISABLE_CC:
-            if (THERMAL_VerifyCmdLength(THERMAL_AppData.MsgPtr, sizeof(THERMAL_NoArgs_cmd_t)))
+            if (THERMAL_VerifyCmdLength(&THERMAL_AppData.MsgPtr->Msg, sizeof(THERMAL_NoArgs_cmd_t)))
             {
                 THERMAL_DisableControl();
                 THERMAL_AppData.CmdCounter++;
@@ -278,7 +278,7 @@ void THERMAL_ProcessGroundCommand(void)
             break;
 
         case THERMAL_SET_THRESHOLDS_CC:
-            if (THERMAL_VerifyCmdLength(THERMAL_AppData.MsgPtr, sizeof(THERMAL_SetThresholds_cmd_t)))
+            if (THERMAL_VerifyCmdLength(&THERMAL_AppData.MsgPtr->Msg, sizeof(THERMAL_SetThresholds_cmd_t)))
             {
                 THERMAL_SetThresholds_cmd_t *cmd = (THERMAL_SetThresholds_cmd_t *)THERMAL_AppData.MsgPtr;
                 THERMAL_SetThresholds(cmd->LowThreshold, cmd->HighThreshold);
@@ -287,7 +287,7 @@ void THERMAL_ProcessGroundCommand(void)
             break;
 
         case THERMAL_HEATER_OVERRIDE_ON_CC:
-            if (THERMAL_VerifyCmdLength(THERMAL_AppData.MsgPtr, sizeof(THERMAL_NoArgs_cmd_t)))
+            if (THERMAL_VerifyCmdLength(&THERMAL_AppData.MsgPtr->Msg, sizeof(THERMAL_NoArgs_cmd_t)))
             {
                 THERMAL_CommandHeater(true);
                 THERMAL_AppData.CmdCounter++;
@@ -297,7 +297,7 @@ void THERMAL_ProcessGroundCommand(void)
             break;
 
         case THERMAL_HEATER_OVERRIDE_OFF_CC:
-            if (THERMAL_VerifyCmdLength(THERMAL_AppData.MsgPtr, sizeof(THERMAL_NoArgs_cmd_t)))
+            if (THERMAL_VerifyCmdLength(&THERMAL_AppData.MsgPtr->Msg, sizeof(THERMAL_NoArgs_cmd_t)))
             {
                 THERMAL_CommandHeater(false);
                 THERMAL_AppData.CmdCounter++;
@@ -317,9 +317,9 @@ void THERMAL_ProcessGroundCommand(void)
 /*
 ** Process TMP100 telemetry and update thermal control loop
 */
-void THERMAL_ProcessTelemetry(CFE_SB_MsgPtr_t MsgPtr)
+void THERMAL_ProcessTelemetry(CFE_SB_Buffer_t *BufPtr)
 {
-    TMP100_Hk_tlm_t *tmp100_hk = (TMP100_Hk_tlm_t *)MsgPtr;
+    TMP100_Hk_tlm_t *tmp100_hk = (TMP100_Hk_tlm_t *)BufPtr;
 
     /* Extract temperature from TMP100 telemetry
     ** The TMP100 stores temperature as a 12-bit value with 0.0625°C resolution
@@ -526,19 +526,19 @@ void THERMAL_ResetCounters(void)
 /*
 ** Verify command length
 */
-bool THERMAL_VerifyCmdLength(CFE_SB_MsgPtr_t msg, uint16 expected_length)
+bool THERMAL_VerifyCmdLength(CFE_MSG_Message_t *MsgPtr, uint16 expected_length)
 {
     bool               result       = true;
     CFE_SB_MsgId_t     MsgId        = CFE_SB_INVALID_MSG_ID;
     CFE_MSG_FcnCode_t  FcnCode      = 0;
     size_t             ActualLength = 0;
 
-    CFE_MSG_GetSize(msg, &ActualLength);
+    CFE_MSG_GetSize(MsgPtr, &ActualLength);
 
     if (expected_length != ActualLength)
     {
-        CFE_MSG_GetMsgId(msg, &MsgId);
-        CFE_MSG_GetFcnCode(msg, &FcnCode);
+        CFE_MSG_GetMsgId(MsgPtr, &MsgId);
+        CFE_MSG_GetFcnCode(MsgPtr, &FcnCode);
 
         CFE_EVS_SendEvent(THERMAL_LEN_ERR_EID, CFE_EVS_EventType_ERROR,
                           "Invalid msg length: ID = 0x%X,  CC = %d, Len = %ld, Expected = %d",

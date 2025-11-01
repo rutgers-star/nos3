@@ -1,0 +1,26 @@
+TELEMETRY THERMAL_CONTROL THERMAL_HK_TLM <%= CosmosCfsConfig::PROCESSOR_ENDIAN %> "THERMAL_Hk_tlm_t"
+  APPEND_ID_ITEM CCSDS_STREAMID       16 UINT 0x0950  "CCSDS Packet Identification" BIG_ENDIAN
+  APPEND_ITEM    CCSDS_SEQUENCE       16 UINT         "CCSDS Packet Sequence Control" BIG_ENDIAN
+  APPEND_ITEM    CCSDS_LENGTH         16 UINT         "CCSDS Packet Data Length" BIG_ENDIAN
+  APPEND_ITEM    CCSDS_SECONDS        32 UINT         "CCSDS Telemetry Secondary Header (seconds)" BIG_ENDIAN
+  APPEND_ITEM    CCSDS_SUBSECS        16 UINT         "CCSDS Telemetry Secondary Header (subseconds)" BIG_ENDIAN
+  APPEND_ITEM    CCSDS_SPARE          32 UINT         ""
+  APPEND_ITEM    CMD_ERR_COUNT         8 UINT         "Command Error Count"
+  APPEND_ITEM    CMD_COUNT             8 UINT         "Command Count"
+  APPEND_ITEM    CONTROL_ENABLED       8 UINT         "Control Enabled Status"
+    STATE DISABLED 0
+    STATE ENABLED  1
+  APPEND_ITEM    CONTROL_STATE         8 UINT         "Control State"
+    STATE DISABLED 0
+    STATE IDLE     1
+    STATE HEATING  2
+    STATE COOLING  3
+  APPEND_ITEM    HEATER_STATE          8 UINT         "Heater State"
+    STATE OFF 0
+    STATE ON  1
+  APPEND_ITEM    HEATER_EPS_SWITCH     8 UINT         "EPS Switch Number Controlling Heater"
+  APPEND_ITEM    CURRENT_TEMPERATURE  32 FLOAT        "Current Temperature (°C)"
+  APPEND_ITEM    TEMP_LOW_THRESHOLD   32 FLOAT        "Low Temperature Threshold (°C) - Heater turns ON"
+  APPEND_ITEM    TEMP_HIGH_THRESHOLD  32 FLOAT        "High Temperature Threshold (°C) - Heater turns OFF"
+  APPEND_ITEM    HEATER_ON_COUNT      32 UINT         "Number of Times Heater Turned ON"
+  APPEND_ITEM    HEATER_OFF_COUNT     32 UINT         "Number of Times Heater Turned OFF"

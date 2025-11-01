@@ -257,6 +257,315 @@ generic_adcs/
 └── sim/              # ADCS hardware simulator
 ```
 
+## Creating New Components
+
+This section documents best practices learned from implementing the thermal control system (heater simulator + thermal_control cFS app).
+
+### Component Directory Structure
+
+A complete hardware component should have:
+```
+components/my_component/
+├── sim/                          # Simulator (hardware model)
+│   ├── inc/                      # Header files
+│   │   ├── my_component_hardware_model.hpp
+│   │   ├── my_component_data_point.hpp
+│   │   ├── my_component_data_provider.hpp
+│   │   └── my_component_42_data_provider.hpp
+│   ├── src/                      # Implementation files
+│   │   ├── my_component_hardware_model.cpp
+│   │   ├── my_component_data_point.cpp
+│   │   ├── my_component_data_provider.cpp
+│   │   └── my_component_42_data_provider.cpp
+│   ├── cfg/                      # Simulator configuration
+│   │   └── nos3-my_component-simulator.xml
+│   └── CMakeLists.txt            # Build configuration
+├── fsw/cfs/                      # Flight software (cFS app)
+│   ├── src/                      # Source files
+│   │   ├── my_component_app.c
+│   │   ├── my_component_app.h
+│   │   ├── my_component_msg.h
+│   │   ├── my_component_events.h
+│   │   ├── my_component_version.h
+│   │   └── my_component_perfids.h
+│   ├── platform_inc/             # Platform-specific headers
+│   │   └── my_component_msgids.h
+│   └── CMakeLists.txt            # Build configuration
+├── gsw/                          # Ground software files
+│   └── MY_COMPONENT_SIM_CMD.txt  # COSMOS simulator commands
+└── README.md                     # Component documentation
+```
+
+### Step-by-Step Component Creation
+
+#### 1. Create Simulator (Hardware Model)
+
+**CMakeLists.txt Pattern:**
+```cmake
+project(my_component_sim)
+
+find_package(ITC_Common REQUIRED QUIET COMPONENTS itc_logger)
+find_package(NOSENGINE REQUIRED QUIET COMPONENTS common transport client i2c)
+
+# CRITICAL: Include directories must include 'inc' and sim_common
+include_directories(inc
+                    ${sim_common_SOURCE_DIR}/inc
+                    ${ITC_Common_INCLUDE_DIRS}
+                    ${NOSENGINE_INCLUDE_DIRS})
+
+set(my_component_sim_src
+    src/my_component_hardware_model.cpp
+    src/my_component_data_point.cpp
+    src/my_component_data_provider.cpp
+    src/my_component_42_data_provider.cpp
+)
+
+file(GLOB my_component_sim_inc inc/*.hpp)
+
+set(my_component_sim_libs
+    sim_common
+    ${ITC_Common_LIBRARIES}
+    ${NOSENGINE_LIBRARIES}
+)
+
+set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_RPATH}:$ORIGIN/../lib")
+
+add_library(my_component_sim SHARED ${my_component_sim_src} ${my_component_sim_inc})
+target_link_libraries(my_component_sim ${my_component_sim_libs})
+install(TARGETS my_component_sim LIBRARY DESTINATION lib ARCHIVE DESTINATION lib)
+```
+
+**Common Mistakes:**
+- Forgetting to include `inc` directory in `include_directories()`
+- Not including `${sim_common_SOURCE_DIR}/inc`
+- Using `SYSTEM` modifier which can hide include errors
+
+**Data Point Constructor:**
+```cpp
+// MUST use the 'count' parameter to avoid unused parameter warnings
+MyComponentDataPoint::MyComponentDataPoint(double count) : _not_parsed(false)
+{
+    _data_is_valid = true;
+    _my_value = 20.0 + 2.0 * sin(count * 0.05);  // Time-varying value
+}
+```
+
+**Data Provider Base Classes:**
+- Simple provider: inherit from `SimIDataProvider`
+- 42 provider: inherit from `SimData42SocketProvider`
+- Always pass `config` to base class constructor: `SimIDataProvider(config)`
+
+#### 2. Create cFS Application
+
+**Modern cFS API (2020+):**
+```c
+// OLD API (DO NOT USE):
+CFE_SB_MsgPtr_t MsgPtr;
+void ProcessTelemetry(CFE_SB_MsgPtr_t MsgPtr);
+
+// NEW API (CORRECT):
+CFE_SB_Buffer_t *MsgPtr;
+void ProcessTelemetry(CFE_SB_Buffer_t *BufPtr);
+bool VerifyCmdLength(CFE_MSG_Message_t *MsgPtr, uint16 expected_length);
+```
+
+**Message Access Pattern:**
+```c
+// In AppData structure:
+CFE_SB_Buffer_t *MsgPtr;
+
+// Receiving messages:
+CFE_SB_ReceiveBuffer((CFE_SB_Buffer_t **)&AppData.MsgPtr,
+                     AppData.CmdPipe, CFE_SB_PEND_FOREVER);
+
+// Accessing message fields:
+CFE_MSG_GetMsgId(&AppData.MsgPtr->Msg, &MsgId);
+CFE_MSG_GetFcnCode(&AppData.MsgPtr->Msg, &CommandCode);
+
+// Passing to verification function:
+VerifyCmdLength(&AppData.MsgPtr->Msg, sizeof(MyCommand_t));
+
+// Casting to specific message type:
+MyCommand_t *cmd = (MyCommand_t *)AppData.MsgPtr;
+```
+
+**CMakeLists.txt for cFS App:**
+```cmake
+project(MY_COMPONENT_APP C)
+
+# If you need headers from other apps:
+set(APPLICATION_PLATFORM_INC_LIST
+    ${CMAKE_CURRENT_SOURCE_DIR}/platform_inc
+    ${other_component_MISSION_DIR}/fsw/cfs/platform_inc
+)
+
+# Create the app
+add_cfe_app(my_component_app
+    src/my_component_app.c
+)
+
+target_include_directories(my_component_app PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${APPLICATION_PLATFORM_INC_LIST}
+)
+```
+
+#### 3. Create Ground Software Files
+
+**COSMOS Simulator Commands (gsw/MY_COMPONENT_SIM_CMD.txt):**
+```
+COMMAND SIM_CMDBUS_BRIDGE MY_COMPONENT_SIM_ENABLE BIG_ENDIAN "Enable My Component Sim"
+  APPEND_PARAMETER CMD_TEMPLATE 0 STRING '{"node":"my-component-sim-command-node","cmd":"ENABLE"}'
+
+COMMAND SIM_CMDBUS_BRIDGE MY_COMPONENT_SIM_DISABLE BIG_ENDIAN "Disable My Component Sim"
+  APPEND_PARAMETER CMD_TEMPLATE 0 STRING '{"node":"my-component-sim-command-node","cmd":"DISABLE"}'
+
+COMMAND SIM_CMDBUS_BRIDGE MY_COMPONENT_SIM_SET_VALUE BIG_ENDIAN "Set My Component Value"
+  APPEND_PARAMETER VALUE 32 FLOAT -100.0 100.0 0.0
+  APPEND_PARAMETER CMD_TEMPLATE 0 STRING '{"node":"my-component-sim-command-node","cmd":"VALUE=<VALUE>"}'
+```
+
+**CRITICAL COSMOS Rules:**
+- NEVER use `MIN_FLOAT`, `MAX_FLOAT`, `MIN_INT32`, etc. - Use actual numeric values
+- Node name in JSON must match the `<node-name>` in simulator XML configuration
+- Parameter names in `<VALUE>` must match the APPEND_PARAMETER name exactly
+
+#### 4. Integration Steps
+
+**Add to Spacecraft Configuration (cfg/spacecraft/sc-mission-config.xml):**
+```xml
+<fsw-app>
+  <name>my_component</name>
+  <directory>my_component/fsw/cfs</directory>
+</fsw-app>
+```
+
+**Add to cFS Build (cfg/nos3_defs/targets.cmake):**
+```cmake
+list(APPEND MISSION_GLOBAL_APPLIST
+    # ... existing apps ...
+    my_component/fsw/cfs
+)
+```
+
+**Add to Startup Script (cfg/nos3_defs/cpu1_cfe_es_startup.scr):**
+```
+CFE_APP, my_component, MY_COMPONENT_AppMain, MY_COMPONENT, 80, 16384, 0x0, 0;
+```
+
+**Add Simulator to nos3-simulator.xml (cfg/sims/nos3-simulator.xml):**
+```xml
+<simulator>
+    <name>my-component-sim</name>
+    <active>true</active>
+    <library>libmy_component_sim.so</library>
+    <hardware-model>
+        <type>MyComponentHardwareModel</type>
+        <connections>
+            <connection>
+                <type>command</type>
+                <bus-name>command</bus-name>
+                <node-name>my-component-sim-command-node</node-name>
+            </connection>
+            <connection>
+                <type>time</type>
+                <bus-name>command</bus-name>
+                <node-name>my-component-time-node</node-name>
+            </connection>
+        </connections>
+        <simulator>
+            <config-file>nos3-my-component-simulator.xml</config-file>
+        </simulator>
+    </hardware-model>
+</simulator>
+```
+
+### Common Build Errors and Solutions
+
+#### Error: "unknown type name 'CFE_SB_MsgPtr_t'"
+**Cause:** Using deprecated cFS API
+**Solution:** Replace with modern API:
+- `CFE_SB_MsgPtr_t` → `CFE_SB_Buffer_t *`
+- Function parameters expecting messages → `CFE_MSG_Message_t *`
+- Access message: `MsgPtr` → `&MsgPtr->Msg`
+
+#### Error: "heater_hardware_model.hpp: No such file or directory"
+**Cause:** Missing include directory in CMakeLists.txt
+**Solution:** Add to simulator CMakeLists.txt:
+```cmake
+include_directories(inc
+                    ${sim_common_SOURCE_DIR}/inc
+                    ...)
+```
+
+#### Error: "unused parameter 'count' [-Werror=unused-parameter]"
+**Cause:** Data point constructor parameter not used
+**Solution:** Use the count parameter for time-varying data:
+```cpp
+MyDataPoint::MyDataPoint(double count) : _not_parsed(false)
+{
+    _my_value = base_value + variation * sin(count * 0.1);
+}
+```
+
+#### Error: "class 'MyProvider' does not have any field named 'SimDataProvider'"
+**Cause:** Header uses `SimIDataProvider` but source uses `SimDataProvider`
+**Solution:** Use consistent base class `SimIDataProvider` in both files
+
+#### COSMOS Error: "Could not convert constant: MIN_FLOAT"
+**Cause:** COSMOS doesn't recognize MIN_FLOAT/MAX_FLOAT constants
+**Solution:** Use explicit numeric ranges:
+```
+APPEND_PARAMETER TEMP 32 FLOAT -50.0 150.0 25.0
+```
+
+#### Error: "class NosEngine::Message has no member named 'is_reply_expected'"
+**Cause:** Method doesn't exist in NOS Engine Message class
+**Solution:** Don't try to distinguish message sources - just process all messages
+
+### Inter-Component Communication
+
+**Sending Commands Between Simulators (NOS Engine):**
+```cpp
+// In hardware model, send temperature update to another simulator
+std::string command = "TEMPERATURE=" + std::to_string(_heater_temperature);
+send_non_confirmed_message("tmp100-sim-command-node", command);
+```
+
+**Commanding Hardware via cFS (Software Bus):**
+```c
+// Send command to EPS to control switch
+GENERIC_EPS_Switch_cmd_t eps_cmd;
+CFE_MSG_Init(&eps_cmd.CmdHeader.Msg,
+             CFE_SB_ValueToMsgId(GENERIC_EPS_CMD_MID),
+             sizeof(GENERIC_EPS_Switch_cmd_t));
+CFE_MSG_SetFcnCode(&eps_cmd.CmdHeader.Msg, GENERIC_EPS_SWITCH_CC);
+eps_cmd.SwitchNumber = 1;
+eps_cmd.State = 0xAA;  // ON
+CFE_SB_TransmitMsg(&eps_cmd.CmdHeader.Msg, true);
+```
+
+**Subscribing to Telemetry:**
+```c
+// Subscribe to another app's telemetry in AppInit()
+status = CFE_SB_Subscribe(CFE_SB_ValueToMsgId(TMP100_HK_TLM_MID),
+                         AppData.CmdPipe);
+
+// Process in ProcessCommandPacket()
+case TMP100_HK_TLM_MID:
+    ProcessTelemetry(AppData.MsgPtr);
+    break;
+```
+
+### Rebuild Requirements After Changes
+
+**Simulator changes → `make clean-sim && make sim`**
+**cFS app changes → `make clean-fsw && make fsw`**
+**Configuration changes → `make config && make all`**
+**GSW changes → `make clean-gsw && make gsw`**
+
+If in doubt, use `make clean && make all` to rebuild everything.
+
 ## Important Environment Details
 
 ### Build Environment Variables

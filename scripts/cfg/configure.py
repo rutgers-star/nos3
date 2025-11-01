@@ -123,6 +123,8 @@ else:
         sc_st_en = sc_root.find('components/st/enable').text
         sc_syn_en = sc_root.find('components/syn/enable').text
         sc_tmp100_en = sc_root.find('components/tmp100/enable').text
+        sc_thermal_control_en = sc_root.find('components/thermal_control/enable').text
+        sc_heater_en = sc_root.find('components/heater/enable').text
         sc_torquer_en = sc_root.find('components/torquer/enable').text
         sc_thruster_en = sc_root.find('components/thruster/enable').text
 
@@ -164,9 +166,11 @@ else:
             st_line = ""
             syn_line = ""
             tmp100_line = ""
+            thermal_control_line = ""
+            heater_line = ""
             torquer_line = ""
             thruster_line = ""
-            
+
             # Parse lines
             for line in lines:
                 if line.find('!') != -1:
@@ -238,6 +242,9 @@ else:
                 if line.find('TMP100,') != -1:
                     if (sc_tmp100_en == 'true'):
                         tmp100_line = line
+                if line.find('THERMAL,') != -1:
+                    if (sc_thermal_control_en == 'true'):
+                        thermal_control_line = line
                 if line.find('TORQUER,') != -1:
                     if (sc_torquer_en == 'true'):
                         torquer_line = line
@@ -251,6 +258,7 @@ else:
         lines.insert(sc_startup_eof, thruster_line)
         lines.insert(sc_startup_eof, syn_line)
         lines.insert(sc_startup_eof, tmp100_line)
+        lines.insert(sc_startup_eof, thermal_control_line)
         lines.insert(sc_startup_eof, st_line)
         lines.insert(sc_startup_eof, sample_line)
         lines.insert(sc_startup_eof, raspberry_pi_line)
@@ -450,6 +458,7 @@ else:
         st_index = 999
         torquer_index = 999
         thruster_index = 999
+        heater_index = 999
 
         with open('./cfg/build/sims/nos3-simulator.xml', 'r') as fp:
             lines = fp.readlines()
@@ -501,6 +510,9 @@ else:
                 if line.find('generic-thruster-sim</name>') != -1:
                     if (lines.index(line)) < thruster_index:
                         thruster_index = lines.index(line) + 1
+                if line.find('heater-sim</name>') != -1:
+                    if (lines.index(line)) < heater_index:
+                        heater_index = lines.index(line) + 1
 
         sim_disabled = '            <active>false</active>\n'
         if (sc_cam_en != 'true'):
@@ -531,6 +543,8 @@ else:
             lines[torquer_index] = sim_disabled
         if (sc_thruster_en != 'true'):
             lines[thruster_index] = sim_disabled
+        if (sc_heater_en != 'true'):
+            lines[heater_index] = sim_disabled
 
         with open('./cfg/build/sims/nos3-simulator.xml', 'w') as fp:
             lines = "".join(lines)

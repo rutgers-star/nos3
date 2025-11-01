@@ -24,8 +24,8 @@ USER_MODIFIED
 "lib/utils_visiona/testutils.rb" 0x06AEC5C0
 "lib/utils_visiona/utils.rb" 0x10DDDBB2
 "config/data/README.txt" 0x93B2C07E
-"config/system/stash/system.txt" 0x37FD0CA1
-"config/system/system.txt" 0x5ABB2802
+"config/system/stash/system.txt" 0x2F5C5F77
+"config/system/system.txt" 0xE069B579
 "config/targets/CFDP/cmd_tlm/cfdp_cmd.txt" 0x4986A1C0
 "config/targets/CFDP/cmd_tlm/cfdp_tlm.txt" 0x8B043277
 "config/targets/CFDP/cmd_tlm_server.txt" 0xBF2B4970
@@ -149,8 +149,8 @@ USER_MODIFIED
 "config/targets/TO_DEBUG/cmd_tlm/TO_DEBUG_CMD.txt" 0x2CCC33FF
 "config/targets/TO_DEBUG/cmd_tlm/TO_DEBUG_TLM.txt" 0x25297652
 "config/targets/TO_DEBUG/target.txt" 0x15BC2D0E
-"config/tools/cmd_tlm_server/stash/cmd_tlm_server.txt" 0xF3871D15
-"config/tools/cmd_tlm_server/cmd_tlm_server.txt" 0xBE48F52D
+"config/tools/cmd_tlm_server/stash/cmd_tlm_server.txt" 0x2506742E
+"config/tools/cmd_tlm_server/cmd_tlm_server.txt" 0x963A77EF
 "config/tools/data_viewer/data_viewer.txt" 0x9389BCAA
 "config/tools/handbook_creator/assets/css/bootstrap-theme.css" 0x446F3211
 "config/tools/handbook_creator/assets/css/bootstrap-theme.min.css" 0xB49F966D

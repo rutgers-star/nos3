@@ -72,6 +72,12 @@
         <tmp100>
             <enable>false</enable>
         </tmp100>
+        <thermal_control>
+            <enable>false</enable>
+        </thermal_control>
+        <heater>
+            <enable>false</enable>
+        </heater>
         <torquer>
             <enable>true</enable>
         </torquer>

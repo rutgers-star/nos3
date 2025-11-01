@@ -1,0 +1,24 @@
+home/jstar/Desktop/github-nos3/components/heater/sim/src/heater_data_provider.cpp: In constructor 'Nos3::HeaterDataProvider::HeaterDataProvider(const ptree&)':
+/home/jstar/Desktop/github-nos3/components/heater/sim/src/heater_data_provider.cpp:11:89: error: class 'Nos3::HeaterDataProvider' does not have any field named 'SimDataProvider'
+   11 |     HeaterDataProvider::HeaterDataProvider(const boost::property_tree::ptree& config) : SimDataProvider(config)
+      |                                                                                         ^~~~~~~~~~~~~~~
+/home/jstar/Desktop/github-nos3/components/heater/sim/src/heater_data_provider.cpp:11:111: error: no matching function for call to 'Nos3::SimIDataProvider::SimIDataProvider()'
+   11 |     HeaterDataProvider::HeaterDataProvider(const boost::property_tree::ptree& config) : SimDataProvider(config)
+      |                                                                                                               ^
+In file included from /home/jstar/Desktop/github-nos3/components/heater/sim/inc/heater_data_provider.hpp:6,
+                 from /home/jstar/Desktop/github-nos3/components/heater/sim/src/heater_data_provider.cpp:3:
+/home/jstar/Desktop/github-nos3/sims/sim_common/inc/sim_i_data_provider.hpp:37:9: note: candidate: 'Nos3::SimIDataProvider::SimIDataProvider(const ptree&)'
+   37 |         SimIDataProvider(__attribute__((unused)) const boost::property_tree::ptree& config) {};
+      |         ^~~~~~~~~~~~~~~~
+/home/jstar/Desktop/github-nos3/sims/sim_common/inc/sim_i_data_provider.hpp:37:9: note:   candidate expects 1 argument, 0 provided
+/home/jstar/Desktop/github-nos3/sims/sim_common/inc/sim_i_data_provider.hpp:30:11: note: candidate: 'constexpr Nos3::SimIDataProvider::SimIDataProvider(const Nos3::SimIDataProvider&)'
+   30 |     class SimIDataProvider
+      |           ^~~~~~~~~~~~~~~~
+/home/jstar/Desktop/github-nos3/sims/sim_common/inc/sim_i_data_provider.hpp:30:11: note:   candidate expects 1 argument, 0 provided
+make[3]: *** [heater/CMakeFiles/heater_sim.dir/build.make:104: heater/CMakeFiles/heater_sim.dir/src/heater_data_provider.cpp.o] Error 1
+make[2]: *** [CMakeFiles/Makefile2:914: heater/CMakeFiles/heater_sim.dir/all] Error 2
+make[1]: *** [Makefile:136: all] Error 2
+make: *** [Makefile:80: build-sim] Error 2
+make[1]: *** [Makefile:254: sim] Error 2
+make[1]: Leaving directory '/home/jstar/Desktop/github-nos3'
+make: *** [Makefile:55: all] Error 2

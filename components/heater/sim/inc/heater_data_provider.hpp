@@ -3,12 +3,12 @@
 
 #include <boost/property_tree/ptree.hpp>
 
-#include <sim_data_provider.hpp>
+#include <sim_i_data_provider.hpp>
 #include <heater_data_point.hpp>
 
 namespace Nos3
 {
-    class HeaterDataProvider : public SimDataProvider
+    class HeaterDataProvider : public SimIDataProvider
     {
     public:
         HeaterDataProvider(const boost::property_tree::ptree& config);

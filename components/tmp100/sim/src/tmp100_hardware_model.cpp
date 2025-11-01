@@ -128,14 +128,7 @@ namespace Nos3
                 _current_temperature = std::stod(command.substr(12));
                 _temperature_register = temperature_to_register(_current_temperature);
                 response = "Tmp100HardwareModel::command_callback:  Temperature set to " + std::to_string(_current_temperature) + "°C";
-
-                /* If this is from heater, don't send reply (non-confirmed message) */
-                if (msg.is_reply_expected()) {
-                    sim_logger->info("Tmp100HardwareModel::command_callback:  Manual temperature update");
-                } else {
-                    sim_logger->debug("Tmp100HardwareModel::command_callback:  Temperature updated from heater: %.2f°C", _current_temperature);
-                    return; /* Don't send reply for heater updates */
-                }
+                sim_logger->debug("Tmp100HardwareModel::command_callback:  Temperature updated: %.2f°C", _current_temperature);
             }
             catch (...)
             {

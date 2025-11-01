@@ -8,7 +8,7 @@ namespace Nos3
 
     extern ItcLogger::Logger *sim_logger;
 
-    HeaterDataProvider::HeaterDataProvider(const boost::property_tree::ptree& config) : SimDataProvider(config)
+    HeaterDataProvider::HeaterDataProvider(const boost::property_tree::ptree& config) : SimIDataProvider(config)
     {
         _request_count = 0.0;
         sim_logger->trace("HeaterDataProvider::HeaterDataProvider:  Configured data provider.");

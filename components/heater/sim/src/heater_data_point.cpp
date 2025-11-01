@@ -10,9 +10,9 @@ namespace Nos3
     {
         sim_logger->trace("HeaterDataPoint::HeaterDataPoint:  Defined Constructor executed");
 
-        /* Provide a fixed ambient temperature */
+        /* Provide ambient temperature with slight time variation */
         _data_is_valid = true;
-        _ambient_temperature = 20.0; // Fixed 20°C ambient
+        _ambient_temperature = 20.0 + 2.0 * sin(count * 0.05); // Varies 18-22°C
     }
 
     HeaterDataPoint::HeaterDataPoint(int16_t spacecraft, const boost::shared_ptr<Sim42DataPoint> dp) :

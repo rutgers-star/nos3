@@ -75,7 +75,7 @@ typedef struct
     uint16 PipeDepth;
 
     CFE_EVS_BinFilter_t EventFilters[THERMAL_EVENT_COUNTS];
-    CFE_SB_MsgPtr_t     MsgPtr;
+    CFE_SB_Buffer_t     *MsgPtr;
 
     /*
     ** Thermal control state and data
@@ -109,10 +109,10 @@ void THERMAL_AppMain(void);
 int32 THERMAL_AppInit(void);
 void THERMAL_ProcessCommandPacket(void);
 void THERMAL_ProcessGroundCommand(void);
-void THERMAL_ProcessTelemetry(CFE_SB_MsgPtr_t MsgPtr);
+void THERMAL_ProcessTelemetry(CFE_SB_Buffer_t *BufPtr);
 void THERMAL_ReportHousekeeping(void);
 void THERMAL_ResetCounters(void);
-bool THERMAL_VerifyCmdLength(CFE_SB_MsgPtr_t msg, uint16 expected_length);
+bool THERMAL_VerifyCmdLength(CFE_MSG_Message_t *MsgPtr, uint16 expected_length);
 
 /* Thermal control functions */
 void THERMAL_UpdateControlLoop(double temperature);
