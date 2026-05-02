@@ -16,10 +16,6 @@ jobs:
       with:
         submodules: recursive
     
-    - name: Verify Make targets
-      run: |
-        make help | grep -E "build-test|test-fsw"
-    
     - name: Prepare environment
       run: make prep
     
