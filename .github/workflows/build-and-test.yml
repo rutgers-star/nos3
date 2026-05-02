@@ -19,6 +19,9 @@ jobs:
     - name: Prepare environment
       run: make prep
     
+    - name: Configure mission
+      run: make config
+    
     - name: Build unit tests
       run: make build-test
     
