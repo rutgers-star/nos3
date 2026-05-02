@@ -1,0 +1,36 @@
+name: Build and Test FSW
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+    
+    - name: Verify Make targets
+      run: |
+        make help | grep -E "build-test|test-fsw"
+    
+    - name: Prepare environment
+      run: make prep
+    
+    - name: Build unit tests
+      run: make build-test
+    
+    - name: Run flight software tests
+      run: make test-fsw
+    
+    - name: Test Results Summary
+      if: always()
+      run: |
+        echo "✅ Build and test completed"
+        echo "Check logs above for any failures"
