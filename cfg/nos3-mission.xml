@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <nos3-mission-cfg>
 	<start-time>814254200.0</start-time>
-	<gsw>cosmos</gsw>
+	<gsw>openc3</gsw>
 	<fsw>cfs</fsw>
 	<number-spacecraft>1</number-spacecraft>
 	<sc-1-cfg>spacecraft/sc-mission-config.xml</sc-1-cfg>
