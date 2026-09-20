@@ -163,3 +163,9 @@
 	path = gsw/yamcs
 	url = https://github.com/nasa-itc/nos3_yamcs_master.git
 	branch = nos3-dev
+[submodule "components/payload_if/fsw/payload-link"]
+	path = components/payload_if/fsw/payload-link
+	url = https://github.com/ja-zoe/payload-link.git
+[submodule "components/payload_if/fsw/payload-apids"]
+	path = components/payload_if/fsw/payload-apids
+	url = https://github.com/rutgers-star/payload-apids.git

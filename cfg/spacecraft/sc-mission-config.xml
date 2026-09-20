@@ -14,7 +14,7 @@
 			<enable>true</enable>
 		</lc>
 		<sbn>
-			<enable>false</enable>
+			<enable>true</enable>
 		</sbn>
 		<sc>
 			<enable>true</enable>
@@ -54,6 +54,9 @@
 		<radio>
 			<enable>true</enable>
 		</radio>
+		<raspberry_pi>
+			<enable>true</enable>
+		</raspberry_pi>
 		<rw>
 			<enable>true</enable>
 		</rw>
@@ -66,12 +69,24 @@
 		<syn>
 			<enable>false</enable>
 		</syn>
+		<tmp100>
+			<enable>true</enable>
+		</tmp100>
+		<thermal_control>
+			<enable>true</enable>
+		</thermal_control>
+		<heater>
+			<enable>true</enable>
+		</heater>
 		<torquer>
 			<enable>true</enable>
 		</torquer>
 		<thruster>
-			<enable>true</enable>
+			<enable>false</enable>
 		</thruster>
+		<payload_if>
+            <enable>true</enable>
+        </payload_if>
 	</components>
 	<gui>
 		<enable>true</enable>

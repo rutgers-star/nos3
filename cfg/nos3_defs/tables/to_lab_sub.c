@@ -66,6 +66,9 @@
 #include "generic_star_tracker_msgids.h"
 #include "mgr_msgids.h"
 #include "syn_msgids.h"
+#include "tmp100_msgids.h"
+#include "thermal_control_msgids.h"
+#include "payload_if_msgids.h"
 
 /*
 ** Local Structure Declarations
@@ -139,6 +142,11 @@ TO_LAB_Subs_t TO_LAB_Subs =
         {CFE_SB_MSGID_WRAP_VALUE(SYN_HK_TLM_MID),               {0,0},  32},
         {CFE_SB_MSGID_WRAP_VALUE(SCH_HK_TLM_MID),               {0,0},  32},
         {CFE_SB_MSGID_WRAP_VALUE(SCH_DIAG_TLM_MID),             {0,0},  32},
+        {CFE_SB_MSGID_WRAP_VALUE(TMP100_HK_TLM_MID),           {0,0},  4},
+        {CFE_SB_MSGID_WRAP_VALUE(TMP100_DEVICE_TLM_MID),       {0,0},  4},
+        {CFE_SB_MSGID_WRAP_VALUE(THERMAL_HK_TLM_MID),          {0,0},  4},
+        {CFE_SB_MSGID_WRAP_VALUE(PAYLOAD_IF_HK_TLM_MID),       {0,0},  32},
+        {CFE_SB_MSGID_WRAP_VALUE(PAYLOAD_IF_DEVICE_TLM_MID),   {0,0},  32},
 
     }
 };

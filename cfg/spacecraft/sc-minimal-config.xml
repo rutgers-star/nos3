@@ -54,6 +54,9 @@
         <radio>
             <enable>false</enable>
         </radio>
+        <raspberry_pi>
+            <enable>false</enable>
+        </raspberry_pi>
         <rw>
             <enable>false</enable>
         </rw>
@@ -66,12 +69,24 @@
         <syn>
             <enable>false</enable>
         </syn>
+        <tmp100>
+            <enable>false</enable>
+        </tmp100>
+        <thermal_control>
+            <enable>false</enable>
+        </thermal_control>
+        <heater>
+            <enable>false</enable>
+        </heater>
         <torquer>
             <enable>false</enable>
         </torquer>
         <thruster>
             <enable>false</enable>
         </thruster>
+        <payload_if>
+            <enable>true</enable>
+        </payload_if>
     </components>
     <gui>
         <enable>false</enable>

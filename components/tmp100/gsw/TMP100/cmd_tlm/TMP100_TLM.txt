@@ -1,0 +1,53 @@
+TELEMETRY TMP100 TMP100_HK_TLM <%= CosmosCfsConfig::PROCESSOR_ENDIAN %> "TMP100_Hk_tlm_t"
+  APPEND_ID_ITEM CCSDS_STREAMID       16 UINT 0x0A00  "CCSDS Packet Identification" BIG_ENDIAN
+  APPEND_ITEM    CCSDS_SEQUENCE       16 UINT         "CCSDS Packet Sequence Control" BIG_ENDIAN
+  APPEND_ITEM    CCSDS_LENGTH         16 UINT         "CCSDS Packet Data Length" BIG_ENDIAN
+  APPEND_ITEM    CCSDS_SECONDS        32 UINT         "CCSDS Telemetry Secondary Header (seconds)" BIG_ENDIAN
+  APPEND_ITEM    CCSDS_SUBSECS        16 UINT         "CCSDS Telemetry Secondary Header (subseconds)" BIG_ENDIAN
+  APPEND_ITEM    CCSDS_SPARE          32 UINT         ""
+  APPEND_ITEM    CMD_ERR_COUNT         8 UINT         "Command Error Count"
+  APPEND_ITEM    CMD_COUNT             8 UINT         "Command Count"
+  APPEND_ITEM    DEVICE_ERR_COUNT      8 UINT         "Device Command Error Count"
+  APPEND_ITEM    DEVICE_COUNT          8 UINT         "Device Command Count"
+  APPEND_ITEM    DEVICE_ENABLED        8 UINT         "Device Enable Status"
+    STATE DISABLED 0
+    STATE ENABLED  1
+  # TMP100_Device_HK_tlm_t
+  APPEND_ITEM    RAW_TEMPERATURE      16 UINT         "Raw TMP100 Temperature Register (16-bit, 12-bit data in upper bits)"
+  APPEND_ITEM    TEMPERATURE_C         0 DERIVED      "Temperature in Celsius"
+    GENERIC_READ_CONVERSION_START FLOAT 32
+      # Extract 12-bit signed value from upper bits and convert to Celsius
+      temp_counts = packet.read("RAW_TEMPERATURE").to_i >> 4
+      # Handle two's complement for negative temps
+      temp_counts = temp_counts - 4096 if temp_counts > 2047
+      temp_counts * 0.0625
+    GENERIC_READ_CONVERSION_END
+  APPEND_ITEM    CONFIG_REGISTER      16 UINT         "TMP100 Configuration Register"
+  APPEND_ITEM    TLOW_REGISTER        16 UINT         "TMP100 TLOW Threshold Register"
+  APPEND_ITEM    THIGH_REGISTER       16 UINT         "TMP100 THIGH Threshold Register"
+
+TELEMETRY TMP100 TMP100_DATA_TLM <%= CosmosCfsConfig::PROCESSOR_ENDIAN %> "TMP100_Device_tlm_t"
+  APPEND_ID_ITEM CCSDS_STREAMID       16 UINT 0x0A01  "CCSDS Packet Identification" BIG_ENDIAN
+  APPEND_ITEM    CCSDS_SEQUENCE       16 UINT         "CCSDS Packet Sequence Control" BIG_ENDIAN
+  APPEND_ITEM    CCSDS_LENGTH         16 UINT         "CCSDS Packet Data Length" BIG_ENDIAN
+  APPEND_ITEM    CCSDS_SECONDS        32 UINT         "CCSDS Telemetry Secondary Header (seconds)" BIG_ENDIAN
+  APPEND_ITEM    CCSDS_SUBSECS        16 UINT         "CCSDS Telemetry Secondary Header (subseconds)" BIG_ENDIAN
+  APPEND_ITEM    CCSDS_SPARE          32 UINT         ""
+  # TMP100_Device_Data_tlm_t
+  APPEND_ITEM    RAW_TEMPERATURE      16 UINT         "Raw 16-bit Temperature Register"
+  APPEND_ITEM    TEMPERATURE_COUNTS   16 INT          "Signed 12-bit Temperature Counts"
+  APPEND_ITEM    TEMPERATURE_CELSIUS  32 FLOAT        "Temperature in Degrees Celsius"
+  # Science metadata (from template, can be removed if not used)
+  APPEND_ITEM    PassNumber           16 UINT         "Science Pass Number"
+  APPEND_ITEM    RegionStatus          8 UINT         "Science Region / Status"
+      STATE SCIENCE_OFF             0
+      STATE SCIENCE_INITIALIZED     1
+      STATE SCIENCE_OVER_AK         2
+      STATE SCIENCE_OVER_CONUS      3
+      STATE SCIENCE_OVER_HI         4
+      STATE NO_SCIENCE_LEFT_AK      5
+      STATE NO_SCIENCE_LEFT_CONUS   6
+      STATE NO_SCIENCE_LEFT_HI      7
+      STATE NO_SCIENCE_LOW_POWER    8
+      STATE NO_SCIENCE_RECHARGED    9
+      STATE EXITED_SCIENCE_MODE     10

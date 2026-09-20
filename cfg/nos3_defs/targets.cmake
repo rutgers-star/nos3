@@ -123,6 +123,10 @@ list(APPEND MISSION_GLOBAL_APPLIST
         onair
         sample/fsw/cfs
         syn/fsw/cfs
+        tmp100/fsw/cfs
+        thermal_control/fsw/cfs
+        raspberry_pi/fsw/cfs
+        payload_if/fsw/cfs
 )
 
 # Create Application Platform Include List

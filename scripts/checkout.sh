@@ -167,6 +167,12 @@ gnome-terminal --title="Sample Checkout" -- $DFLAGS -v $BASE_DIR:$BASE_DIR --nam
 
 
 ##
+## Payload IF
+##
+gnome-terminal --tab --title="Payload IF Sim" -- $DFLAGS -v $SIM_DIR:$SIM_DIR --name $SC_NUM"_payload_if_sim" --network=$SC_NETNAME -w $SIM_BIN $DBOX ./nos3-single-simulator $SC_CFG_FILE payload_if-sim
+gnome-terminal --title="Payload IF Checkout" -- $DFLAGS -v $BASE_DIR:$BASE_DIR --name $SC_NUM"_payload_if_checkout" --network=$SC_NETNAME -w $BASE_DIR $DBOX ./components/payload_if/fsw/standalone/build/payload_if_checkout
+
+##
 ## Star Tracker
 ##
 # rm -rf $USER_NOS3_DIR/42/NOS3InOut

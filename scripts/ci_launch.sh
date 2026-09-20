@@ -190,7 +190,8 @@ for (( i=1; i<=$SATNUM; i++ )); do
         gps generic-imu-sim generic-mag-sim \
         generic-reactionwheel-sim0 generic-reactionwheel-sim1 \
         generic-reactionwheel-sim2 generic-radio-sim sample-sim \
-        generic-star-tracker-sim generic-thruster-sim generic-torquer-sim; do
+        generic-star-tracker-sim generic-thruster-sim generic-torquer-sim \
+        payload_if-sim; do
 
         if [[ "$sim" == "generic_radio_sim" ]]; then
             $DCALL run -d --name ${SC_NUM}-${sim} --network=$SC_NET \

@@ -4,5 +4,18 @@
 # Declare files that will always have LF line endings on checkout.
 *.sh text eol=lf
 
-# Handle PNGs as binary
+# Handle binary formats explicitly so the '* text' rule above doesn't
+# renormalize their line endings and corrupt them on checkout.
 *.png binary
+*.jpg binary
+*.gif binary
+*.icns binary
+*.pdf binary
+*.doc binary
+*.docx binary
+*.xls binary
+*.xlsx binary
+*.ppt binary
+*.zip binary
+*.tgz binary
+*.db binary

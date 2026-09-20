@@ -91,7 +91,3 @@ If looking exclusively at COSMOS, the Command Counter of the SAMPLE app should i
 
 You have now successfully simulated both the testing and patching of a spacecraft RTS table!
 Patching an app would be done in the same manner, and is left as an exercise to the reader.
-
-**_NOTE:_** For those wishing to slightly extend this scenario, they may wish to try running again but with the `make cosmos-operator` command instead of `make launch`.
-The former command launches all of NOS3, but only shows COSMOS (since that is all that would be seen by a spacecraft operator in a real scenario).  
-

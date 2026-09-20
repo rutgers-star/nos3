@@ -110,11 +110,6 @@ yamcs-operator:  ## Launch as a YAMCS operator viewpoint
 	@export SYSTEM_TEST_FILE_PATH=$(SYSTEM_TEST_FILE_PATH) && \
 	./scripts/ci_launch.sh --use-yamcs
 
-#Be sure that your nos3-mission.xml has been set to COSMOS
-cosmos-operator: ## Launch as a COSMOS operator viewpoint
-	@export SYSTEM_TEST_FILE_PATH=../..$(SYSTEM_TEST_FILE_PATH) && \
-	./scripts/ci_launch.sh --use-cosmos-gui 
-
 clean: ## Clean all build files and configurations
 	$(MAKE) clean-fsw
 	$(MAKE) clean-sim
@@ -213,7 +208,6 @@ help-all: ## Displays advanced help information
 	@printf "\t%-20s %s\n" "gcov"           "Build Code Coverage Results"
 	@printf "\t%-20s %s\n" "gsw"            "Build Ground Software Binaries"
 	@printf "\t%-20s %s\n" "sim"            "Build Simulation Binaries"
-	@printf "\t%-20s %s\n" "cosmos-operator" "Launch as COSMOS operator viewpoint - requires configuration"
 	@printf "\t%-20s %s\n" "yamcs-operator" "Launch as YAMCS operator viewpoint - requires configuration"
 
 	@echo ""

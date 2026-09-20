@@ -77,6 +77,9 @@ extern "C" {
 #include "generic_adcs_msgids.h"
 #include "generic_star_tracker_msgids.h"
 #include "mgr_msgids.h"
+#include "tmp100_msgids.h"
+#include "thermal_control_msgids.h"
+#include "payload_if_msgids.h"
 
 /*
 ** Local Structure Declarations
@@ -169,11 +172,11 @@ TO_ConfigTable_t to_ConfigTable =
        {CFE_SB_MSGID_WRAP_VALUE(SBN_HKPEER_TLM_MID),     {0,0}, 32, 0xffff, TO_GROUP_APP | TO_MGROUP_ONE, 0,1},
        {CFE_SB_MSGID_WRAP_VALUE(SBN_HKPEERSUBS_TLM_MID), {0,0}, 32, 0xffff, TO_GROUP_APP | TO_MGROUP_ONE, 0,1},
        {CFE_SB_MSGID_WRAP_VALUE(SBN_HKMYSUBS_TLM_MID),   {0,0}, 32, 0xffff, TO_GROUP_APP | TO_MGROUP_ONE, 0,1},
-       {CFE_SB_MSGID_WRAP_VALUE(TO_UNUSED_ENTRY),              {0,0},  0,   0x0000,     TO_GROUP_NONE,            0,0},
-       {CFE_SB_MSGID_WRAP_VALUE(TO_UNUSED_ENTRY),              {0,0},  0,   0x0000,     TO_GROUP_NONE,            0,0},
-       {CFE_SB_MSGID_WRAP_VALUE(TO_UNUSED_ENTRY),              {0,0},  0,   0x0000,     TO_GROUP_NONE,            0,0},
-       {CFE_SB_MSGID_WRAP_VALUE(TO_UNUSED_ENTRY),              {0,0},  0,   0x0000,     TO_GROUP_NONE,            0,0},
-       {CFE_SB_MSGID_WRAP_VALUE(TO_UNUSED_ENTRY),              {0,0},  0,   0x0000,     TO_GROUP_NONE,            0,0},
+       {CFE_SB_MSGID_WRAP_VALUE(TMP100_HK_TLM_MID),            {0,0},  4,   0xffff,     TO_GROUP_APP | TO_MGROUP_ONE, 0,1},
+       {CFE_SB_MSGID_WRAP_VALUE(TMP100_DEVICE_TLM_MID),        {0,0},  4,   0xffff,     TO_GROUP_APP | TO_MGROUP_ONE, 0,1},
+       {CFE_SB_MSGID_WRAP_VALUE(THERMAL_HK_TLM_MID),           {0,0},  4,   0xffff,     TO_GROUP_APP | TO_MGROUP_ONE, 0,1},
+       {CFE_SB_MSGID_WRAP_VALUE(PAYLOAD_IF_HK_TLM_MID),        {0,0},  32,  0xffff,     TO_GROUP_NONE,            0,0},
+       {CFE_SB_MSGID_WRAP_VALUE(PAYLOAD_IF_DEVICE_TLM_MID),    {0,0},  32,  0xffff,     TO_GROUP_NONE,            0,0},
        
        /* 60 - 69 */
        {CFE_SB_MSGID_WRAP_VALUE(TO_UNUSED_ENTRY),              {0,0},  0,   0x0000,     TO_GROUP_NONE,            0,0},

@@ -142,12 +142,17 @@ else:
         sc_mag_en = sc_root.find('components/mag/enable').text
         sc_mgr_en = sc_root.find('components/mgr/enable').text
         sc_radio_en = sc_root.find('components/radio/enable').text
+        sc_raspberry_pi_en = sc_root.find('components/raspberry_pi/enable').text
         sc_rw_en = sc_root.find('components/rw/enable').text
         sc_sample_en = sc_root.find('components/sample/enable').text
         sc_st_en = sc_root.find('components/st/enable').text
         sc_syn_en = sc_root.find('components/syn/enable').text
+        sc_tmp100_en = sc_root.find('components/tmp100/enable').text
+        sc_thermal_control_en = sc_root.find('components/thermal_control/enable').text
+        sc_heater_en = sc_root.find('components/heater/enable').text
         sc_torquer_en = sc_root.find('components/torquer/enable').text
         sc_thruster_en = sc_root.find('components/thruster/enable').text
+        sc_payload_if_en = sc_root.find('components/payload_if/enable').text
 
         sc_gui_en = sc_root.find('gui/enable').text
         sc_orbit_tipoff_x = sc_root.find('orbit/tipoff_x').text
@@ -181,13 +186,18 @@ else:
             mag_line = ""
             mgr_line = ""
             radio_line = ""
+            raspberry_pi_line = ""
             rw_line = ""
             sample_line = ""
             st_line = ""
             syn_line = ""
+            tmp100_line = ""
+            thermal_control_line = ""
+            heater_line = ""
             torquer_line = ""
             thruster_line = ""
-            
+            payload_if_line = ""
+
             # Parse lines
             for line in lines:
                 if line.find('!') != -1:
@@ -238,6 +248,9 @@ else:
                 if line.find('RADIO,') != -1:
                     if (sc_radio_en == 'true'):
                         radio_line = line
+                if line.find('RASPBERRY_PI,') != -1:
+                    if (sc_raspberry_pi_en == 'true'):
+                        raspberry_pi_line = line
                 if line.find('RW,') != -1:
                     if (sc_rw_en == 'true'):
                         rw_line = line
@@ -253,20 +266,32 @@ else:
                 if line.find('SYN,') != -1:
                     if (sc_syn_en == 'true'):
                         syn_line = line
+                if line.find('TMP100,') != -1:
+                    if (sc_tmp100_en == 'true'):
+                        tmp100_line = line
+                if line.find('THERMAL,') != -1:
+                    if (sc_thermal_control_en == 'true'):
+                        thermal_control_line = line
                 if line.find('TORQUER,') != -1:
                     if (sc_torquer_en == 'true'):
                         torquer_line = line
                 if line.find('THRUSTER,') != -1:
                     if (sc_thruster_en == 'true'):
                         thruster_line = line
+                if line.find('PAYLOAD_IF') != -1:
+                    if (sc_payload_if_en == 'true'):
+                        payload_if_line = line
 
         # Modify startup script per spacecraft configuration
         lines.insert(sc_startup_eof, "\n")
         lines.insert(sc_startup_eof, torquer_line)
         lines.insert(sc_startup_eof, thruster_line)
         lines.insert(sc_startup_eof, syn_line)
+        lines.insert(sc_startup_eof, tmp100_line)
+        lines.insert(sc_startup_eof, thermal_control_line)
         lines.insert(sc_startup_eof, st_line)
         lines.insert(sc_startup_eof, sample_line)
+        lines.insert(sc_startup_eof, raspberry_pi_line)
         lines.insert(sc_startup_eof, rw_line)
         lines.insert(sc_startup_eof, radio_line)
         lines.insert(sc_startup_eof, mag_line)
@@ -284,6 +309,7 @@ else:
         lines.insert(sc_startup_eof, fm_line)
         lines.insert(sc_startup_eof, ds_line)
         lines.insert(sc_startup_eof, cf_line)
+        lines.insert(sc_startup_eof, payload_if_line)
                         
         # Write startup script file
         with open('./cfg/build/nos3_defs/cpu1_cfe_es_startup.scr', 'w') as fp:
@@ -467,6 +493,8 @@ else:
         st_index = 999
         torquer_index = 999
         thruster_index = 999
+        heater_index = 999
+        payload_if_index = 999
 
         with open('./cfg/build/sims/nos3-simulator.xml', 'r') as fp:
             lines = fp.readlines()
@@ -518,6 +546,12 @@ else:
                 if line.find('generic-thruster-sim</name>') != -1:
                     if (lines.index(line)) < thruster_index:
                         thruster_index = lines.index(line) + 1
+                if line.find('heater-sim</name>') != -1:
+                    if (lines.index(line)) < heater_index:
+                        heater_index = lines.index(line) + 1
+                if line.find('payload_if-sim</name>') != -1:
+                    if (lines.index(line)) < payload_if_index:
+                        payload_if_index = lines.index(line) + 1
 
         sim_disabled = '            <active>false</active>\n'
         if (sc_cam_en != 'true'):
@@ -548,6 +582,10 @@ else:
             lines[torquer_index] = sim_disabled
         if (sc_thruster_en != 'true'):
             lines[thruster_index] = sim_disabled
+        if (sc_heater_en != 'true'):
+            lines[heater_index] = sim_disabled
+        if (sc_payload_if_en != 'true'):
+            lines[payload_if_index] = sim_disabled
 
         with open('./cfg/build/sims/nos3-simulator.xml', 'w') as fp:
             lines = "".join(lines)
