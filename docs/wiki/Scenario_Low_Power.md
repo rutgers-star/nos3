@@ -48,8 +48,6 @@ In order to set up this scenario, a few configuration changes need to be made to
 ![lowPower_ChargeChange](./_static/scenario_low_power/lowPower_ChargeChange.png)
 
 Now, rebuild and launch NOS3 as you would normally. It may also be useful to minimize the 42 GUI and FSW consoles and use COSMOS for all your information, as this will put you in a perspective most similar to that of an Operator in the MOC.
-**Note: In the future, you could launch NOS3 in operator mode with `make cosmos-operator` and follow the instructions in the terminal to make sure everything launches. This would put you in a more operator-like mode to start, though the 42 GUI will still launch. However, this feature is still in development, so simply using `make launch` as usual is advised.**
-
 * Wait 30 seconds, then open the Script Runner and Telemetry Grapher. 
 * In Telemetry Grapher, launch the `EPS_test.txt` and then hit Start. 
   * This will track your power level and switch/in sun statuses in the graph. 
