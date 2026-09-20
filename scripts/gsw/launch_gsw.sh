@@ -42,13 +42,21 @@ mkdir /tmp/nos3/uplink 2> /dev/null
 cp $BASE_DIR/fsw/build/exe/cpu1/cf/cfe_es_startup.scr /tmp/nos3/uplink/tmp0.so 2> /dev/null
 cp $BASE_DIR/fsw/build/exe/cpu1/cf/sample.so /tmp/nos3/uplink/tmp1.so 2> /dev/null
 
+ensure_bridge_network() {
+    local network_name="$1"
+    shift
+
+    if $DNETWORK inspect "$network_name" > /dev/null 2>&1; then
+        return 0
+    fi
+
+    $DNETWORK create --driver=bridge "$@" "$network_name"
+}
+
 echo "Create networks..."
-$DNETWORK create \
-    --driver=overlay \
+ensure_bridge_network nos3-core \
     --subnet=192.168.41.0/24 \
-    --gateway=192.168.41.1 \
-    --attachable \
-    nos3-core
+    --gateway=192.168.41.1
 
 
 echo "Launch GSW..."
@@ -67,18 +75,17 @@ do
     export SC_NETNAME="nos3-"$SC_NUM
     export SC_CFG_FILE="-f nos3-simulator.xml" #"-f sc_"$i"_nos3_simulator.xml"
 
-    $DNETWORK create \
-        --driver=overlay \
-        --attachable \
-        $SC_NETNAME
+    ensure_bridge_network "$SC_NETNAME"
 
     # Debugging
     #echo "Spacecraft number        = " $SC_NUM
     #echo "Spacecraft network       = " $SC_NETNAME
     #echo "Spacecraft configuration = " $SC_CFG_FILE
     
-    echo $SC_NUM " - Connect COSMOS to spacecraft network..."
-    $DNETWORK connect $SC_NETNAME openc3-openc3-operator-1 --alias cosmos
+    echo $SC_NUM " - Connect OpenC3 to spacecraft network..."
+    if ! $DNETWORK inspect "$SC_NETNAME" --format '{{range .Containers}}{{println .Name}}{{end}}' | grep -Fxq openc3-openc3-operator-1; then
+        $DNETWORK connect $SC_NETNAME openc3-openc3-operator-1 --alias cosmos
+    fi
     echo ""
 
     echo ""

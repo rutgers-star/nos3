@@ -106,12 +106,16 @@ make ci-launch                # Headless system testing
 ```bash
 make launch                   # Launch full NOS3 system
 make stop                     # Stop entire system
+make start-gsw                # Start OpenC3 COSMOS only; prints its version and local URL
+make stop-gsw                 # Stop OpenC3 COSMOS / ground software only
 make debug                    # Launch debug terminal
 make checkout                 # Run checkout application
-make cosmos-operator          # Launch with COSMOS GUI
 make yamcs-operator          # Launch with YAMCS GUI
 make log                      # View system logs
 ```
+
+`make start-gsw` does not open a browser. Once OpenC3 is ready, it reports a
+message such as `OpenC3 COSMOS 6.3.0 is up and running at http://localhost:2900`.
 
 ### Help and Documentation
 ```bash

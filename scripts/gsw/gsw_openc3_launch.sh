@@ -21,11 +21,21 @@ export GSW="openc3-openc3-operator-1"
 echo "Prepare openc3 containers..."
 cd $OPENC3_DIR
 $OPENC3_PATH run
-echo ""
 
-echo "OpenC3 launch..."
-pidof firefox > /dev/null
-if [ $? -eq 1 ]
-then
-    firefox localhost:2900 &
-fi
+OPENC3_VERSION=$(sed -n 's/^OPENC3_TAG=//p' "$OPENC3_DIR/.env" | head -n 1)
+OPENC3_VERSION=${OPENC3_VERSION:-unknown}
+OPENC3_PORT=2900
+OPENC3_URL="http://localhost:${OPENC3_PORT}"
+
+# `openc3.sh run` starts services asynchronously.  Wait until the web UI can
+# answer before reporting that OpenC3 is ready; do not open a host browser.
+for _ in $(seq 1 30); do
+    if curl --fail --silent --output /dev/null "$OPENC3_URL"; then
+        echo "OpenC3 COSMOS ${OPENC3_VERSION} is up and running at ${OPENC3_URL}"
+        exit 0
+    fi
+    sleep 1
+done
+
+echo "OpenC3 COSMOS ${OPENC3_VERSION} was started, but is not reachable at ${OPENC3_URL} yet."
+exit 1
