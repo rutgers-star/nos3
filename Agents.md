@@ -117,6 +117,15 @@ make log                      # View system logs
 `make start-gsw` does not open a browser. Once OpenC3 is ready, it reports a
 message such as `OpenC3 COSMOS 6.3.0 is up and running at http://localhost:2900`.
 
+### Pinned NOS3 and OpenC3 Versions
+
+The repository commit and all Git submodules define the NOS3 source revision.
+The OpenC3 bootstrap in `scripts/gsw/gsw_openc3_build.sh` is pinned to
+`nasa-itc/openc3-nos3` commit `b65559fa9e7267fadcce34ab0e7bf719cabb3979` and
+verifies OpenC3 container tag `6.3.0` and the digest of every OpenC3 image.
+Do not substitute a branch such as `dev`; update all pins deliberately and
+validate `make gsw` after doing so.
+
 ### Help and Documentation
 ```bash
 make help                     # Display basic help
