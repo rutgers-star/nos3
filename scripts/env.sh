@@ -12,9 +12,9 @@ SIM_DIR=$BASE_DIR/sims/build
 SIM_BIN=$SIM_DIR/bin
 COMPONENT_DIR=$SCRIPT_DIR/../components
 
-if [ -d $SIM_DIR/bin ]; then
-    SIMS=$(ls $SIM_BIN/nos3*simulator) 
-fi 
+if [ -d "$SIM_BIN" ]; then
+    SIMS=$(find "$SIM_BIN" -maxdepth 1 -type f -name 'nos3*simulator' -print)
+fi
 
 DATE=$(date "+%Y%m%d%H%M")
 NUM_CPUS="$( nproc )"
@@ -22,36 +22,51 @@ NUM_CPUS="$( nproc )"
 USERDIR=$(cd ~/ && pwd)
 USER_NOS3_DIR=$(cd ~/ && pwd)/.nos3
 USER_FPRIME_PATH=$USERDIR/.cookiecutter_replay
-
-OPENC3_DIR=$USER_NOS3_DIR/cosmos
+USER_YAMCS_PATH=$USER_NOS3_DIR/.m2
+OPENC3_DIR=$USER_NOS3_DIR/openc3
 OPENC3_PATH=$OPENC3_DIR/openc3.sh
+OPENC3_CLI="$OPENC3_DIR/openc3.sh cli"
+OPENC3_CLIROOT="$OPENC3_DIR/openc3.sh cliroot"
 
 INFLUXDB_DB=ait
 INFLUXDB_ADMIN_USER=ait
 INFLUXDB_ADMIN_PASSWORD=admin_password
 
+DOCKER_COMPOSE_COMMAND="docker compose"
+${DOCKER_COMPOSE_COMMAND} version &> /dev/null
+if [ "$?" -ne 0 ]; then
+  DOCKER_COMPOSE_COMMAND="docker-compose"
+fi
+
 ###
-### Notes:
-###   Detecting Podman vs Docker and adjusting flags accordingly
+### Notes: 
+###   Podman and/or Docker on RHEL not yet supported
 ###
-# Check if using Podman in rootless mode (check for podman command and podman.sock in user dir)
-if command -v podman &> /dev/null && [[ "$DOCKER_HOST" == *"/run/user/"* ]]; then
-    # Using Podman in rootless mode - don't use -u flag to avoid permission issues
-    DCALL="docker"
-    DFLAGS="docker run --rm -it"
-    DFLAGS_CPUS="$DFLAGS --cpus=$NUM_CPUS"
-    DCREATE="docker create --rm -it"
-    DNETWORK="docker network"
-else
-    # Using Docker or Podman in rootful mode
+#if [ -f "/etc/redhat-release" ]; then
+#    DCALL="docker"
+#    DFLAGS="docker run --rm -it -v /etc/passwd:/etc/passwd:ro -v /etc/group:/etc/group:ro -u $(id -u $(stat -c '%U' $SCRIPT_DIR/env.sh)):$(getent group $(stat -c '%G' $SCRIPT_DIR/env.sh) | cut -d: -f3)"
+#    DFLAGS_CPUS="$DFLAGS --cpus=$NUM_CPUS"
+#    DCREATE="docker create --rm -it"
+#    DNETWORK="docker network"
+#else
     DCALL="docker"
     DFLAGS="docker run --rm -it -v /etc/passwd:/etc/passwd:ro -v /etc/group:/etc/group:ro -u $(id -u $(stat -c '%U' $SCRIPT_DIR/env.sh)):$(getent group $(stat -c '%G' $SCRIPT_DIR/env.sh) | cut -d: -f3)"
     DFLAGS_CPUS="$DFLAGS --cpus=$NUM_CPUS"
     DCREATE="docker create --rm -it"
     DNETWORK="docker network"
-fi
+#fi
 
-DBOX="ivvitc/nos3-64:20250514"
+DBOX="ivvitc/nos3-64:20260619"
+
+# Radio Config
+RADIO_TX_FSW_PORT=5010
+RADIO_RX_FSW_PORT=5011
+
+# CryptoLib Ground Config
+CRYPTO_RX_GROUND_PORT=6010
+CRYPTO_TX_GROUND_PORT=6011
+CRYPTO_TX_RADIO_PORT=8010
+CRYPTO_RX_RADIO_PORT=8011
 
 # Debugging
 #echo "Script directory = " $SCRIPT_DIR
@@ -69,4 +84,3 @@ DBOX="ivvitc/nos3-64:20250514"
 #echo "Local user .nos3 = " $USER_NOS3_DIR
 #echo "OpenC3 directory = " $OPENC3_DIR
 #echo "OpenC3 path      = " $OPENC3_PATH
-

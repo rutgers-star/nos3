@@ -45,6 +45,7 @@
 #include "sc_msgids.h"
 #include "sch_msgids.h"
 #include "to_msgids.h"
+#include "sbn_msgids.h"
 
 /*
 ** Component Include Files
@@ -67,6 +68,7 @@
 #include "syn_msgids.h"
 #include "tmp100_msgids.h"
 #include "thermal_control_msgids.h"
+#include "payload_if_msgids.h"
 
 /*
 ** Local Structure Declarations
@@ -91,6 +93,11 @@ TO_LAB_Subs_t TO_LAB_Subs =
         {CFE_SB_MSGID_WRAP_VALUE(SC_HK_TLM_MID), {0,0}, 4},
         {CFE_SB_MSGID_WRAP_VALUE(DS_HK_TLM_MID), {0,0}, 4},
         {CFE_SB_MSGID_WRAP_VALUE(LC_HK_TLM_MID), {0,0}, 4},
+        {CFE_SB_MSGID_WRAP_VALUE(SBN_HK_TLM_MID), {0,0}, 4},
+        {CFE_SB_MSGID_WRAP_VALUE(SBN_HKNET_TLM_MID), {0,0}, 4},
+        {CFE_SB_MSGID_WRAP_VALUE(SBN_HKPEER_TLM_MID), {0,0}, 4},
+        {CFE_SB_MSGID_WRAP_VALUE(SBN_HKPEERSUBS_TLM_MID), {0,0}, 4},
+        {CFE_SB_MSGID_WRAP_VALUE(SBN_HKMYSUBS_TLM_MID), {0,0}, 4},
 
         /* cFE Core subscriptions */
         {CFE_SB_MSGID_WRAP_VALUE(CFE_ES_HK_TLM_MID), {0, 0}, 4},
@@ -138,6 +145,8 @@ TO_LAB_Subs_t TO_LAB_Subs =
         {CFE_SB_MSGID_WRAP_VALUE(TMP100_HK_TLM_MID),           {0,0},  4},
         {CFE_SB_MSGID_WRAP_VALUE(TMP100_DEVICE_TLM_MID),       {0,0},  4},
         {CFE_SB_MSGID_WRAP_VALUE(THERMAL_HK_TLM_MID),          {0,0},  4},
+        {CFE_SB_MSGID_WRAP_VALUE(PAYLOAD_IF_HK_TLM_MID),       {0,0},  32},
+        {CFE_SB_MSGID_WRAP_VALUE(PAYLOAD_IF_DEVICE_TLM_MID),   {0,0},  32},
 
     }
 };

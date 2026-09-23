@@ -44,6 +44,19 @@ SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99 -Wstrict-prototypes -pedantic -Werr
 SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wwrite-strings -Wpointer-arith -Wno-address-of-packed-member")
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror")
 
+# Demote two warnings in vendored upstream code from errors back to warnings.
+# These must stay in this config layer rather than being patched into the
+# vendored trees: fsw/apps/io_lib and fsw/apps/hwlib are currently byte-identical
+# to the commits nasa/nos3 pins (io_lib b98953ee, hwlib d65f77de), and there is no
+# submodule link maintaining that. Keeping them unmodified means drift is
+# detectable with a plain `diff -r` against a fresh upstream clone.
+#
+#   format-overflow: io_lib tm_sdlp.c:288 sprintf() into a 20-byte
+#                    OS_MAX_API_NAME buffer that can need 22. Reported upstream.
+#   strict-overflow: osal osapi-clock.h:454 fixed-point shift the optimizer
+#                    cannot prove non-negative; the arithmetic is intentional.
+SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-error=format-overflow -Wno-error=strict-overflow")
+
 if (CFE_SYSTEM_PSPNAME STREQUAL "nos-linux")
     # find itc cmake module path
     find_path(_ITC_CMAKE_MODULES_

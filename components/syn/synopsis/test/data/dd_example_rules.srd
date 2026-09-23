@@ -1,6 +1,0 @@
-BIN 0:
-
-CONSTRAINT(x):
-APPLIES x.instrument_name == "OWLS"
-COUNT
-LESS THAN 3;

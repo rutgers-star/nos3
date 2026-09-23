@@ -22,7 +22,7 @@
     </applications>
     <components>
         <adcs>
-            <enable>false</enable>
+            <enable>true</enable>
         </adcs>
         <cam>
             <enable>true</enable>
@@ -37,7 +37,7 @@
             <enable>true</enable>
         </fss>
         <gps>
-            <enable>false</enable>
+            <enable>true</enable>
         </gps>
         <imu>
             <enable>true</enable>
@@ -84,6 +84,9 @@
         <thruster>
             <enable>true</enable>
         </thruster>
+        <payload_if>
+            <enable>true</enable>
+        </payload_if>
     </components>
     <gui>
         <enable>true</enable>

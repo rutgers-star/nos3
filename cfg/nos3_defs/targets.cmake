@@ -125,6 +125,8 @@ list(APPEND MISSION_GLOBAL_APPLIST
         syn/fsw/cfs
         tmp100/fsw/cfs
         thermal_control/fsw/cfs
+        raspberry_pi/fsw/cfs
+        payload_if/fsw/cfs
 )
 
 # Create Application Platform Include List
@@ -159,13 +161,13 @@ SET(FT_INSTALL_SUBDIR "host/functional-test")
 # Each target board can have its own HW arch selection and set of included apps
 SET(MISSION_CPUNAMES cpu1)
 
-# NASA Operational Simulator for Small Satellites (NOS3) - Host Linux
+# NASA Operational Simulator for Space Systems (NOS3) - Host Linux
 SET(cpu1_PROCESSORID 1)
 SET(cpu1_APPLIST) # Note: Using all ${MISSION_GLOBAL_APPLIST} automatically
 SET(cpu1_FILELIST cfe_es_startup.scr)
 if (ENABLE_UNIT_TESTS)
     SET(cpu1_SYSTEM amd64-posix)
-else()
+else() 
     SET(cpu1_SYSTEM amd64-nos3)
 endif()
 

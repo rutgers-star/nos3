@@ -18,9 +18,9 @@ NOS3 can be distilled down into various configurable modules that make up the en
   * F'
 * Ground Software
   * Ammos Instrument Toolkit
-  * Ball Aerospace
+  * Ball Aerospace COSMOS 4.5 (default)
   * OpenC3 COSMOS
-  * YAMCS (default)
+  * YAMCS
 * Simulations
   * Generic versions of standard COTS components
 * Middleware
@@ -45,9 +45,12 @@ NOS3 can be distilled down into various configurable modules that make up the en
     - NASA's cFS is safety-critical flight software. Make sure you are building your applications to specification and that you are properly using the PSP and OSAL calls from within your apps.
     - It is best to **_not_** run cFS as sudo. If you are doing this, make sure you have configured for your host or are providing appropriate run-time arguments with cFS.
 6. Can NOS3 be run across multiple computers?
-    - Yes, the satellite and ground software can be split apart and run on their own VMs. The instructions can be found [here](https://github.com/nasa/nos3/wiki/NOS3-Build-and-Run-on-Multiple-VMs).
+    - Yes, the satellite and ground software can be split apart and run on their own VMs. The instructions can be found [here](./NOS3_Build_and_Run_on_Multiple_VMs.md).
 7. I am having trouble with windows line endings (\r) while building, what should I do?
     - Inside nos3/ directory run the following command in the terminal: `find . -type f -print0 | xargs -0 dos2unix`
+8. I cannot launch NOS3 with the Cosmos GSW option on arm64, why does the NOS3 System crash particularly 42 dynamics and its GUI?
+    - On Arm64 machines 42 does not launch properly because the ballaerospace Cosmos version 4.5 contianer is only available for amd64 architectures.
+    - However, NOS3 is still operational with 42 on Arm64 machines with yamcs and OpenC3 GSW options.
     
 
 ### Why should NOS3 be used?
@@ -91,6 +94,6 @@ NOS3 allows you to conduct end-to-end simulations, test different mission scenar
 
 You can reference the **Generating a New Component** section of the documentation. Here it will guide you through how to generate a component in NOS3. 
 
-Link: [Generating a New Component](Generating_NOS3_Component.md)
+Link: [Generating a New Component](NOS3_Generating_Component.md)
 
 

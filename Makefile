@@ -62,12 +62,13 @@ all: ## Build everything: config, fsw, sim, gsw
 
 build-cryptolib: ## Build CryptoLib Component, ## -DSTANDALONE_TCP=0 if using udp for cryptolib in the loop
 	mkdir -p $(GSWBUILDDIR)
-	cd $(GSWBUILDDIR) && cmake $(PREP_OPTS) -DSTANDALONE_TCP=1 -DCRYPTO_RX_GROUND_PORT=$(CRYPTO_RX_GROUND_PORT) -DCRYPTO_TX_GROUND_PORT=$(CRYPTO_TX_GROUND_PORT) -DCRYPTO_TX_RADIO_PORT=$(CRYPTO_TX_RADIO_PORT) -DCRYPTO_RX_RADIO_PORT=$(CRYPTO_RX_RADIO_PORT) -DSA_FILE=OFF -DSUPPORT=1 -DCRYPTO_LIBGCRYPT=1 -DSA_INTERNAL=1 -DMC_INTERNAL=1 -DKEY_INTERNAL=1 ../../components/cryptolib
+# 	cd $(GSWBUILDDIR) && cmake $(PREP_OPTS) -DSTANDALONE_TCP=0 -DCRYPTO_RX_GROUND_PORT=$(CRYPTO_RX_GROUND_PORT) -DCRYPTO_TX_GROUND_PORT=$(CRYPTO_TX_GROUND_PORT) -DCRYPTO_TX_RADIO_PORT=$(CRYPTO_TX_RADIO_PORT) -DCRYPTO_RX_RADIO_PORT=$(CRYPTO_RX_RADIO_PORT) -DSA_FILE=OFF -DSUPPORT=1 -DCRYPTO_LIBGCRYPT=1 -DSA_INTERNAL=1 -DMC_INTERNAL=1 -DKEY_INTERNAL=1 ../../components/cryptolib
+	cd $(GSWBUILDDIR) && cmake $(PREP_OPTS) -DCRYPTO_RX_GROUND_PORT=$(CRYPTO_RX_GROUND_PORT) -DCRYPTO_TX_GROUND_PORT=$(CRYPTO_TX_GROUND_PORT) -DCRYPTO_TX_RADIO_PORT=$(CRYPTO_TX_RADIO_PORT) -DCRYPTO_RX_RADIO_PORT=$(CRYPTO_RX_RADIO_PORT) -DSA_FILE=OFF -DSUPPORT=1 -DCRYPTO_LIBGCRYPT=1 -DSA_INTERNAL=1 -DMC_INTERNAL=1 -DKEY_INTERNAL=1 ../../components/cryptolib
 	$(MAKE) --no-print-directory -C $(GSWBUILDDIR)
 
 build-fsw: ## Build the flight software (cFS or F')
 ifeq ($(FLIGHT_SOFTWARE), fprime)
-	cd fsw/fprime/fprime-nos3 && fprime-util generate && fprime-util build
+	cd fsw/fprime/fprime-nos3 && fprime-util generate && fprime-util build && fprime-seqgen Sequences/nos3test.seq -d build-artifacts/Linux/deployment/dict/deploymentTopologyDictionary.json
 else
 	mkdir -p $(FSWBUILDDIR)
 	cd $(FSWBUILDDIR) && cmake $(PREP_OPTS) ../cfe
@@ -109,11 +110,6 @@ yamcs-operator:  ## Launch as a YAMCS operator viewpoint
 	@export SYSTEM_TEST_FILE_PATH=$(SYSTEM_TEST_FILE_PATH) && \
 	./scripts/ci_launch.sh --use-yamcs
 
-#Be sure that your nos3-mission.xml has been set to COSMOS
-cosmos-operator: ## Launch as a COSMOS operator viewpoint
-	@export SYSTEM_TEST_FILE_PATH=../..$(SYSTEM_TEST_FILE_PATH) && \
-	./scripts/ci_launch.sh --use-cosmos-gui 
-
 clean: ## Clean all build files and configurations
 	$(MAKE) clean-fsw
 	$(MAKE) clean-sim
@@ -128,6 +124,7 @@ clean-fsw: ## Clean only flight software build artifacts
 	rm -rf fsw/fprime/fprime-nos3/build-fprime-automatic-native
 	rm -rf fsw/fprime/fprime-nos3/fprime-venv
 	rm -rf fsw/fprime/fprime-nos3/logs
+	rm -f fsw/fprime/fprime-nos3/Sequences/*.bin
 
 clean-sim: ## Clean only simulator build artifacts
 	rm -rf sims/build
@@ -136,6 +133,7 @@ clean-gsw: ## Clean only GSW build artifacts
 	rm -rf gsw/build
 	rm -rf gsw/cosmos/build
 	rm -rf /tmp/nos3
+	./scripts/gsw/gsw_openc3_clean.sh
 
 config: ## Run configuration setup
 	@if [ -n "$(SC1_CFG)" ]; then \
@@ -210,7 +208,6 @@ help-all: ## Displays advanced help information
 	@printf "\t%-20s %s\n" "gcov"           "Build Code Coverage Results"
 	@printf "\t%-20s %s\n" "gsw"            "Build Ground Software Binaries"
 	@printf "\t%-20s %s\n" "sim"            "Build Simulation Binaries"
-	@printf "\t%-20s %s\n" "cosmos-operator" "Launch as COSMOS operator viewpoint - requires configuration"
 	@printf "\t%-20s %s\n" "yamcs-operator" "Launch as YAMCS operator viewpoint - requires configuration"
 
 	@echo ""

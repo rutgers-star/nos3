@@ -84,6 +84,9 @@
         <thruster>
             <enable>false</enable>
         </thruster>
+        <payload_if>
+            <enable>true</enable>
+        </payload_if>
     </components>
     <gui>
         <enable>false</enable>

@@ -38,6 +38,7 @@ if (fsw_cfg == 'cfs'):
     fsw_identified = 1
     os.system('cp ./scripts/fsw/fsw_cfs_build.sh ./cfg/build/fsw_build.sh')
     os.system('cp ./scripts/fsw/fsw_cfs_launch.sh ./cfg/build/launch.sh')
+    # os.system('cp ./scripts/fsw/fsw_cfs_multipleGSW_launch.sh ./cfg/build/launch.sh')
 if (fsw_identified == 0):
     print('Invalid FSW in configuration file!')
     print('Exiting due to error...')
@@ -72,9 +73,33 @@ if (gsw_cfg == 'yamcs'):
     gsw_identified = 1
     os.system('cp ./scripts/gsw/gsw_yamcs_build.sh ./cfg/build/gsw_build.sh')
     os.system('cp ./scripts/gsw/gsw_yamcs_launch.sh ./cfg/build/gsw_launch.sh')
+    os.system('cp ./scripts/cfg/yamcs_default.nos3.yaml ./gsw/yamcs/nos3/src/main/yamcs/etc/yamcs.nos3.yaml')
+if (gsw_cfg == 'multiple'):
+    # Copy mulitple scripts into ./cfg/build
+    gsw_identified = 1
+    os.system('cp ./scripts/gsw/gsw_cosmos_multi_build.sh ./cfg/build/gsw_build.sh')
+    os.system('cp ./scripts/gsw/gsw_cosmos_launch.sh ./cfg/build/gsw_launch.sh')
+    os.system('cp ./scripts/gsw/gsw_yamcs_build.sh ./cfg/build/gsw_build2.sh')
+    os.system('cp ./scripts/gsw/gsw_yamcs_multi_launch.sh ./cfg/build/gsw_launch2.sh')  
+    os.system('cp ./cfg/build/sims/nos3-simulator-multipleGDS.xml ./cfg/build/sims/nos3-simulator.xml')
+    os.system('cp ./scripts/fsw/fsw_cfs_multipleGSW_launch.sh ./cfg/build/launch.sh')
+    os.system('cp ./scripts/cfg/yamcs_multiGDS.nos3.yaml ./gsw/yamcs/nos3/src/main/yamcs/etc/yamcs.nos3.yaml')
 if (gsw_identified == 0):
     print('Invalid GSW in configuration file!')
     print('Exiting due to error...')
+
+# Scenario
+scenario = mission_root.find('scenario').text
+print('  scenario:', scenario)
+if (scenario == 'DeepSpace'):
+    os.system('cp ./cfg/InOut/Inp_Sim_DeepSpace.txt ./cfg/InOut/Inp_Sim.txt')
+    os.system('cp ./cfg/InOut/Inp_Graphics_DeepSpace.txt ./cfg/InOut/Inp_Graphics.txt')
+elif (scenario == 'Gateway'):
+    os.system('cp ./cfg/InOut/Inp_Sim_Gateway.txt ./cfg/InOut/Inp_Sim.txt')
+    os.system('cp ./cfg/InOut/Inp_Graphics_Gateway.txt ./cfg/InOut/Inp_Graphics.txt')
+else:
+    os.system('cp ./cfg/InOut/Inp_Sim_STF1.txt ./cfg/InOut/Inp_Sim.txt')
+    os.system('cp ./cfg/InOut/Inp_Graphics_STF1.txt ./cfg/InOut/Inp_Graphics.txt')
 
 # Read number of spacecraft
 mission_number_spacecraft = mission_root.find('number-spacecraft').text
@@ -127,6 +152,7 @@ else:
         sc_heater_en = sc_root.find('components/heater/enable').text
         sc_torquer_en = sc_root.find('components/torquer/enable').text
         sc_thruster_en = sc_root.find('components/thruster/enable').text
+        sc_payload_if_en = sc_root.find('components/payload_if/enable').text
 
         sc_gui_en = sc_root.find('gui/enable').text
         sc_orbit_tipoff_x = sc_root.find('orbit/tipoff_x').text
@@ -170,6 +196,7 @@ else:
             heater_line = ""
             torquer_line = ""
             thruster_line = ""
+            payload_if_line = ""
 
             # Parse lines
             for line in lines:
@@ -251,6 +278,9 @@ else:
                 if line.find('THRUSTER,') != -1:
                     if (sc_thruster_en == 'true'):
                         thruster_line = line
+                if line.find('PAYLOAD_IF') != -1:
+                    if (sc_payload_if_en == 'true'):
+                        payload_if_line = line
 
         # Modify startup script per spacecraft configuration
         lines.insert(sc_startup_eof, "\n")
@@ -279,6 +309,7 @@ else:
         lines.insert(sc_startup_eof, fm_line)
         lines.insert(sc_startup_eof, ds_line)
         lines.insert(sc_startup_eof, cf_line)
+        lines.insert(sc_startup_eof, payload_if_line)
                         
         # Write startup script file
         with open('./cfg/build/nos3_defs/cpu1_cfe_es_startup.scr', 'w') as fp:
@@ -440,6 +471,10 @@ else:
             lines = "".join(lines)
             fp.write(lines)
 
+        # Inp_Graphics.txt
+        os.system('cp ./cfg/InOut/Inp_Graphics.txt ./cfg/build/InOut/Inp_Graphics.txt')
+
+
         ###
         ### Simulators - nos3-simulator.xml
         ###
@@ -459,6 +494,7 @@ else:
         torquer_index = 999
         thruster_index = 999
         heater_index = 999
+        payload_if_index = 999
 
         with open('./cfg/build/sims/nos3-simulator.xml', 'r') as fp:
             lines = fp.readlines()
@@ -513,6 +549,9 @@ else:
                 if line.find('heater-sim</name>') != -1:
                     if (lines.index(line)) < heater_index:
                         heater_index = lines.index(line) + 1
+                if line.find('payload_if-sim</name>') != -1:
+                    if (lines.index(line)) < payload_if_index:
+                        payload_if_index = lines.index(line) + 1
 
         sim_disabled = '            <active>false</active>\n'
         if (sc_cam_en != 'true'):
@@ -545,6 +584,8 @@ else:
             lines[thruster_index] = sim_disabled
         if (sc_heater_en != 'true'):
             lines[heater_index] = sim_disabled
+        if (sc_payload_if_en != 'true'):
+            lines[payload_if_index] = sim_disabled
 
         with open('./cfg/build/sims/nos3-simulator.xml', 'w') as fp:
             lines = "".join(lines)
