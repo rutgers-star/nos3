@@ -18,9 +18,6 @@ include_directories(inc
 set(payload_if_sim_src
     src/payload_if_hardware_model.cpp
     src/payobc_link_model.cpp
-    src/payload_if_42_data_provider.cpp
-    src/payload_if_data_provider.cpp
-    src/payload_if_data_point.cpp
 )
 
 # For Code::Blocks and other IDEs
