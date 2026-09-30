@@ -23,7 +23,7 @@ add_cfe_app(payload_if ${APP_SRC_FILES}
             ../shared/payload_if_device.c)
 target_link_libraries(payload_if payload_link)
 target_link_libraries(payload_if STAR::payload_apids)
-# payload-link is a pinned external dependency (commit 0a8e90d); demote this
+# payload-link is a pinned external dependency (commit ca5053b); demote this
 # warning to avoid patching the vendored source, matching the pattern used
 # for io_lib/hwlib in arch_build_custom.cmake.
 target_compile_options(payload_link PRIVATE -Wno-error=switch-default)
