@@ -950,6 +950,68 @@ void Test_PAYLOAD_IF_SendToPayload_FullWriteSucceeds(void)
     UtAssert_INT32_EQ((int32)ok_count_after, (int32)(ok_count_before + 1));
 }
 
+void Test_PAYLOAD_IF_SendToPayload_RevBLiteralVector(void)
+{
+    /*
+     * Test Case For:
+     * void PAYLOAD_IF_SendToPayload(void)
+     * The ICD RevB A1 command packet must leave the UART as the literal frame
+     * from the ICD. The expected bytes are written out rather than produced
+     * by plframe_encode, so an encoder or CRC-coverage change is caught.
+     */
+    uint8_t test_msg[13] = {0x10, 0x10, 0xC0, 0x00, 0x00, 0x06, 0x20, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01};
+    const uint8_t expected_frame[] = {0x1A, 0xCF, 0xFC, 0x1D, 0x00, 0x0D, 0x10, 0x10, 0xC0, 0x00, 0x00,
+                                      0x06, 0x20, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x9B, 0xBA};
+    size_t        msg_size         = sizeof(test_msg);
+
+    PAYLOAD_IF_AppData.MsgPtr = (CFE_MSG_Message_t *)test_msg;
+    Captured_UartWriteLen     = 0;
+
+    UT_SetDataBuffer(UT_KEY(CFE_MSG_GetSize), &msg_size, sizeof(msg_size), false);
+    UT_SetHandlerFunction(UT_KEY(uart_write_port), UartWriteCapture_Hook, NULL);
+    UT_SetDeferredRetcode(UT_KEY(uart_write_port), 1, (int32_t)sizeof(expected_frame));
+
+    PAYLOAD_IF_SendToPayload();
+
+    UtAssert_INT32_EQ((int32)Captured_UartWriteLen, (int32)sizeof(expected_frame));
+    UtAssert_True(memcmp(Captured_UartWriteData, expected_frame, sizeof(expected_frame)) == 0,
+                  "UART write bytes match the ICD RevB literal frame");
+}
+
+void Test_PAYLOAD_IF_ProcessCommandPacket_PayObcCommandMid(void)
+{
+    /*
+     * Test Case For:
+     * void PAYLOAD_IF_ProcessCommandPacket
+     * MID 0x1010 (APID 0x010 telecommand, ICD RevB D6) is forwarded to the
+     * PayOBC. MID 0x0010 (the same APID with the telemetry type bit) is not.
+     */
+    uint8_t         test_msg[13] = {0x10, 0x10, 0xC0, 0x00, 0x00, 0x06, 0x20, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01};
+    size_t          msg_size     = sizeof(test_msg);
+    CFE_SB_MsgId_t  TestMsgId;
+    UT_CheckEvent_t EventTest;
+
+    UtAssert_INT32_EQ(PAYLOAD_IF_PAYOBC_CMD_MID, 0x1010);
+
+    PAYLOAD_IF_AppData.MsgPtr = (CFE_MSG_Message_t *)test_msg;
+    UT_CheckEvent_Setup(&EventTest, PAYLOAD_IF_PROCESS_CMD_ERR_EID, NULL);
+
+    TestMsgId = CFE_SB_ValueToMsgId(PAYLOAD_IF_PAYOBC_CMD_MID);
+    UT_SetDataBuffer(UT_KEY(CFE_MSG_GetMsgId), &TestMsgId, sizeof(TestMsgId), false);
+    UT_SetDataBuffer(UT_KEY(CFE_MSG_GetSize), &msg_size, sizeof(msg_size), false);
+    PAYLOAD_IF_ProcessCommandPacket();
+    UtAssert_STUB_COUNT(uart_write_port, 1);
+    UtAssert_True(EventTest.MatchCount == 0, "PAYLOAD_IF_PROCESS_CMD_ERR_EID not generated (%u)",
+                  (unsigned int)EventTest.MatchCount);
+
+    TestMsgId = CFE_SB_ValueToMsgId(STAR_APID_PAYLOAD_COMMAND);
+    UT_SetDataBuffer(UT_KEY(CFE_MSG_GetMsgId), &TestMsgId, sizeof(TestMsgId), false);
+    PAYLOAD_IF_ProcessCommandPacket();
+    UtAssert_STUB_COUNT(uart_write_port, 1);
+    UtAssert_True(EventTest.MatchCount == 1, "PAYLOAD_IF_PROCESS_CMD_ERR_EID generated for MID 0x0010 (%u)",
+                  (unsigned int)EventTest.MatchCount);
+}
+
 void Test_PAYLOAD_IF_ResetCounters_ClearsAll(void)
 {
     /*
@@ -1031,4 +1093,6 @@ void UtTest_Setup(void)
     ADD_TEST(PAYLOAD_IF_SendToPayload_FullWriteSucceeds);
     ADD_TEST(PAYLOAD_IF_ResetCounters_ClearsAll);
     ADD_TEST(PAYLOAD_IF_ReportHousekeeping_ReflectsCounters);
+    ADD_TEST(PAYLOAD_IF_SendToPayload_RevBLiteralVector);
+    ADD_TEST(PAYLOAD_IF_ProcessCommandPacket_PayObcCommandMid);
 }

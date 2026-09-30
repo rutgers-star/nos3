@@ -165,11 +165,11 @@ int32 PAYLOAD_IF_AppInit(void)
     ** Subscribe to the outbound BusOBC->PayOBC payload command message.
     ** Any packet published to this MID gets forwarded to the PayOBC over UART.
     */
-    status = CFE_SB_Subscribe(CFE_SB_ValueToMsgId(STAR_APID_PAYLOAD_COMMAND), PAYLOAD_IF_AppData.CmdPipe);
+    status = CFE_SB_Subscribe(CFE_SB_ValueToMsgId(PAYLOAD_IF_PAYOBC_CMD_MID), PAYLOAD_IF_AppData.CmdPipe);
     if (status != CFE_SUCCESS)
     {
         CFE_EVS_SendEvent(PAYLOAD_IF_SUB_CMD_ERR_EID, CFE_EVS_EventType_ERROR,
-                          "Error Subscribing to Payload Command, MID=0x%04X, RC=0x%08X", STAR_APID_PAYLOAD_COMMAND,
+                          "Error Subscribing to Payload Command, MID=0x%04X, RC=0x%08X", PAYLOAD_IF_PAYOBC_CMD_MID,
                           (unsigned int)status);
         return status;
     }
@@ -274,7 +274,7 @@ void PAYLOAD_IF_ProcessCommandPacket(void)
         /*
         ** Outbound BusOBC->PayOBC payload command: encode and send over UART
         */
-        case STAR_APID_PAYLOAD_COMMAND:
+        case PAYLOAD_IF_PAYOBC_CMD_MID:
             PAYLOAD_IF_SendToPayload();
             break;
 

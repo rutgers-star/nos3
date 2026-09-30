@@ -28,6 +28,15 @@
 #include "mgr_msgids.h"
 
 /*
+** cFE message ID of payload commands forwarded to the PayOBC. CCSDS v1 message
+** IDs are the first 16 bits of the primary header, so the MID carries the
+** packet type. ICD RevB D6 makes APID 0x010 a telecommand (type bit 0x1000)
+** with no secondary header, which gives MID 0x1010.
+*/
+#define PAYLOAD_IF_CCSDS_TYPE_CMD 0x1000
+#define PAYLOAD_IF_PAYOBC_CMD_MID (PAYLOAD_IF_CCSDS_TYPE_CMD | STAR_APID_PAYLOAD_COMMAND)
+
+/*
 ** Specified pipe depth - how many messages will be queued in the pipe
 */
 #define PAYLOAD_IF_PIPE_DEPTH 32
