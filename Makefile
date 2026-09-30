@@ -74,6 +74,9 @@ else
 	# build-test shares this directory and caches ENABLE_UNIT_TESTS=true, which selects the
 	# unit-test target (Linux hardware drivers) instead of NOS3; always reset it here
 	cd $(FSWBUILDDIR) && cmake $(PREP_OPTS) -DENABLE_UNIT_TESTS=false ../cfe
+	# Table rule files are shared by both targets and only written when missing, so after
+	# a unit-test build they would keep pointing at the unit-test table objects
+	rm -f $(FSWBUILDDIR)/tables/*.d
 	$(MAKE) --no-print-directory -C $(FSWBUILDDIR) mission-install
 endif
 
@@ -88,6 +91,8 @@ ifeq ($(FLIGHT_SOFTWARE), fprime)
 else
 	mkdir -p $(FSWBUILDDIR)
 	cd $(FSWBUILDDIR) && cmake $(PREP_OPTS) -DENABLE_UNIT_TESTS=true ../cfe
+	# Regenerate table rule files for this target (see build-fsw)
+	rm -f $(FSWBUILDDIR)/tables/*.d
 	$(MAKE) --no-print-directory -C $(FSWBUILDDIR) mission-install
 endif
 
