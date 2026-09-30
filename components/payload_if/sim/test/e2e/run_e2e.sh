@@ -73,8 +73,10 @@ $DCALL run -dit --name $PREFIX-bridge --network $NET --network-alias cmdbus-brid
     -v "$SIM_DIR:$SIM_DIR" -w "$SIM_BIN" $DBOX \
     ./nos3-sim-cmdbus-bridge -f nos3-simulator.xml > /dev/null
 
-# Flight software runs as root, as in scripts/ci_launch.sh, for real-time priorities
-$DCALL run -dit --name $PREFIX-fsw -h nos-fsw --network $NET \
+# Flight software runs as the invoking user, as make launch runs it. Running it as
+# root leaves root-owned files (CryptoLib log.txt, EEPROM.DAT, ...) in $FSW_DIR,
+# and CryptoLib then fails to initialize under make launch.
+$DCALL run -dit --name $PREFIX-fsw -h nos-fsw --network $NET $USER_FLAGS \
     -v "$BASE_DIR:$BASE_DIR" -e LD_LIBRARY_PATH="$FSW_DIR:/usr/lib:/usr/local/lib" \
     -w "$FSW_DIR" --sysctl fs.mqueue.msg_max=10000 --ulimit rtprio=99 --cap-add=sys_nice \
     $DBOX bash -c "exec ./core-cpu1 -R PO" > /dev/null
