@@ -55,3 +55,22 @@ TELEMETRY PAYLOAD_IF PAYLOAD_IF_DATA_TLM <%= CosmosCfsConfig::PROCESSOR_ENDIAN %
       STATE NO_SCIENCE_LOW_POWER    8
       STATE NO_SCIENCE_RECHARGED    9
       STATE EXITED_SCIENCE_MODE     10
+
+# PayOBC status telemetry on APID 0x011 (telemetry, no secondary header), received
+# over the payload link and published unchanged by PAYLOAD_IF. Layout: sim/README.md.
+TELEMETRY PAYLOAD_IF PAYOBC_STATUS BIG_ENDIAN "PayOBC status reported over the payload link"
+  APPEND_ID_ITEM CCSDS_STREAMID       16 UINT 0x0011  "CCSDS Packet Identification"
+  APPEND_ITEM    CCSDS_SEQ_FLAGS       2 UINT         "CCSDS Sequence Flags"
+  APPEND_ITEM    SEQUENCE_COUNT       14 UINT         "PayOBC telemetry sequence count"
+  APPEND_ITEM    CCSDS_LENGTH         16 UINT         "CCSDS Packet Data Length"
+  APPEND_ITEM    REPORT_TYPE           8 UINT         "Why this report was sent"
+    STATE COMMAND_RESPONSE 1
+    STATE REQUESTED        2
+  APPEND_ITEM    OPCODE                8 UINT         "Opcode of the command being answered"
+    FORMAT_STRING "0x%02X"
+  APPEND_ITEM    COMMAND_COUNTER      16 UINT         "Counter of the command being answered"
+  APPEND_ITEM    COMMANDS_ACCEPTED    16 UINT         "Commands the PayOBC accepted since reset"
+  APPEND_ITEM    FRAMES_BAD_CRC       16 UINT         "Frames from the BusOBC dropped for bad CRC"
+  APPEND_ITEM    FRAMES_RESYNC        16 UINT         "Frames from the BusOBC dropped for invalid length"
+  APPEND_ITEM    PACKETS_MALFORMED    16 UINT         "Packets from the BusOBC dropped as malformed CCSDS"
+  APPEND_ITEM    PACKETS_DISALLOWED   16 UINT         "Packets from the BusOBC dropped by the APID allowlist"

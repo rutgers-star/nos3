@@ -17,6 +17,9 @@
 */
 PAYLOAD_IF_AppData_t PAYLOAD_IF_AppData;
 
+/* The downlink tables subscribe to this MID; it must stay the payload-apids telemetry APID */
+CompileTimeAssert(PAYLOAD_IF_PAYOBC_TLM_MID == STAR_APID_PAYLOAD_TELEMETRY, PayObcTlmMidMatchesApid);
+
 /*
 ** Application entry point and main process loop
 */
