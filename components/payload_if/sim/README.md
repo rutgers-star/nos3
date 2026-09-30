@@ -159,6 +159,28 @@ The script also checks the simulator log for the unchanged command bytes.
 `ENABLE_UNIT_TESTS=true`. After `make build-test` into the same directory, the
 flight binary uses the Linux hardware UART driver and every UART open fails.
 
+## Through OpenC3
+
+```sh
+make config && make fsw && make sim && make gsw
+make launch            # or: make launch HEADLESS=1 COMPONENTS="payload_if radio"
+```
+
+In the OpenC3 UI (http://localhost:2900):
+
+1. **Command Sender**: send `PAYLOAD_IF_DEBUG PAYLOAD_IF_ENABLE_CC`.
+2. **Command Sender**: send `PAYLOAD_IF_DEBUG PAYOBC_CMD`. With its defaults
+   (opcode `0x20`, counter 1, argument 1) this is the ICD RevB A1 packet.
+3. **Packet Viewer**: `PAYLOAD_IF_DEBUG PAYOBC_STATUS` shows the decoded reply:
+   sequence count, echoed opcode and counter, accepted commands, and the
+   PayOBC's error counters.
+4. **Command Sender**, target `SIM_CMDBUS_BRIDGE`: the `PAYLOAD_IF_SIM_*`
+   commands reset the simulator and inject faults (see Simulator control).
+
+The `_DEBUG` targets use CI_LAB and TO_LAB directly. The `_RADIO` targets go
+through CryptoLib and the radio simulator, and their downlink starts only
+after `CFS_RADIO TO_ENABLE_OUTPUT`.
+
 ## Known limitations
 
 - Only APID `0x010` has behavior. Other BusOBC-to-PayOBC APIDs are validated and
@@ -167,6 +189,13 @@ flight binary uses the Linux hardware UART driver and every UART open fails.
   `0x010` is local to this simulator.
 - payload-link does not rescan bytes consumed by a rejected frame. A real sync
   word inside a dropped frame's body is therefore missed.
+- `PAYOBC_STATUS` does not reach OpenC3 over the RADIO path. The CryptoLib
+  standalone ground tool (`components/cryptolib/support/standalone/standalone.c`)
+  forwards only packets whose first byte is `0x08` or `0x09` (telemetry with a
+  secondary header), idle packets, and CFDP. A packet without a secondary header,
+  as ICD RevB D6 requires for `0x011`, is reported as an "SPP loop error", and the
+  rest of that TM frame is discarded. Commands over RADIO and telemetry over DEBUG
+  work.
 - The YAMCS definition `../gsw/payload_if.xtce` still carries the component
   template's message IDs (0x18FA/0x18FB, 0x08FA/0x08FB) and does not match
   PAYLOAD_IF. The mission uses OpenC3, whose definitions are in `../gsw/PAYLOAD_IF`.
