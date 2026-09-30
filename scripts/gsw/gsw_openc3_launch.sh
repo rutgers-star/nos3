@@ -32,7 +32,8 @@ OPENC3_URL="http://localhost:${OPENC3_PORT}"
 for _ in $(seq 1 30); do
     if curl --fail --silent --output /dev/null "$OPENC3_URL"; then
         echo "OpenC3 COSMOS ${OPENC3_VERSION} is up and running at ${OPENC3_URL}"
-        exit 0
+        # launch.sh sources this script; exit would end the whole launch
+        return 0 2>/dev/null || exit 0
     fi
     sleep 1
 done
