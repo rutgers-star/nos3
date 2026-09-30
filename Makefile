@@ -176,6 +176,8 @@ help: ## Display this help message
 	@printf "%-20s %s\n" "help"          "Display this help message"
 	@printf "%-20s %s\n" "help-all"      "Display advanced help information"
 	@printf "%-20s %s\n" "launch"        "Launch NOS3 System"
+	@printf "%-20s %s\n" ""              "  HEADLESS=1: run containers detached instead of in terminal tabs"
+	@printf "%-20s %s\n" ""              "  COMPONENTS=\"eps rw ...\": start only these simulated components"
 	@printf "%-20s %s\n" "prep"          "Prepare full development environment"
 	@printf "%-20s %s\n" "stop"          "Stop entire system"
 	@printf "%-20s %s\n" "uninstall"     "Remove all build artifacts and containers"
@@ -234,7 +236,7 @@ help-all: ## Displays advanced help information
 igniter: ## Launch Configuration GUI Igniter
 	./scripts/cfg/igniter_launch.sh
 
-launch: ## Launch NOS3 System
+launch: ## Launch NOS3 System; options HEADLESS=1 and COMPONENTS="..." (see scripts/fsw/fsw_cfs_launch.sh)
 	./cfg/build/launch.sh
 
 log: ## Log outputs
