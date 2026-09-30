@@ -47,5 +47,6 @@
 /* Hardware protocol event IDs */
 #define PAYLOAD_IF_UART_INIT_ERR_EID  40
 #define PAYLOAD_IF_UART_CLOSE_ERR_EID 41
+#define PAYLOAD_IF_RX_TASK_ERR_EID    42
 
 #endif /* _PAYLOAD_IF_EVENTS_H_ */

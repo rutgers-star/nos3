@@ -81,6 +81,7 @@ typedef struct
     uart_info_t Payload_ifUart; /* Hardware protocol definition */
     CFE_ES_TaskId_t          RxTaskID;      /* Child task ID for asynchronous UART receive */
     volatile bool            RxTaskRunning; /* Set true to run RxTask loop, false to stop it */
+    osal_id_t                RxTaskExitSem; /* Given by RxTask when it leaves its loop */
     plframe_decode_ctx_t     DecodeCtx;     /* Persistent payload-link decoder state */
 
 } PAYLOAD_IF_AppData_t;
@@ -111,6 +112,8 @@ void  PAYLOAD_IF_Disable(void);
 void  PAYLOAD_IF_Configure(void);
 int32 PAYLOAD_IF_VerifyCmdLength(CFE_MSG_Message_t *msg, uint16 expected_length);
 void  PAYLOAD_IF_RxTask(void);
+int32 PAYLOAD_IF_StartRxTask(void);
+void  PAYLOAD_IF_StopRxTask(void);
 void  PAYLOAD_IF_SendToPayload(void);
 int32 PAYLOAD_IF_HandleDecodedFrame(void);
 

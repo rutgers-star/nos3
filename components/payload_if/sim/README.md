@@ -151,7 +151,7 @@ simulator, and the sim command bus bridge, on a private Docker network. Then
 - Receives telemetry through TO_LAB (UDP 5013).
 - Checks literal packets for the normal exchange, state change, bad CRC
   recovery, split and doubled frames, length and APID rejection, the old `0x0010`
-  message ID, and reset.
+  message ID, reset, and PAYLOAD_IF disable and re-enable.
 
 The script also checks the simulator log for the unchanged command bytes.
 
@@ -167,10 +167,6 @@ flight binary uses the Linux hardware UART driver and every UART open fails.
   `0x010` is local to this simulator.
 - payload-link does not rescan bytes consumed by a rejected frame. A real sync
   word inside a dropped frame's body is therefore missed.
-- `PAYLOAD_IF` reads one UART byte per 10 ms task cycle (100 bytes/s). The
-  simulator transmits at line rate, and NOS Engine queues up to 1024 bytes on
-  the receiving side, so sustained traffic above about 1 KB can overflow the
-  BusOBC receive queue.
-- In the integration test, disabling and re-enabling `PAYLOAD_IF` does not
-  restore reception: `PAYLOAD_IF_Disable` stops the RX child task and
-  `PAYLOAD_IF_Enable` does not restart it. The test reports this as a known issue.
+- The YAMCS definition `../gsw/payload_if.xtce` still carries the component
+  template's message IDs (0x18FA/0x18FB, 0x08FA/0x08FB) and does not match
+  PAYLOAD_IF. The mission uses OpenC3, whose definitions are in `../gsw/PAYLOAD_IF`.

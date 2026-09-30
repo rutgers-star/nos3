@@ -32,15 +32,14 @@ SIM_NODE = "payload_if-command"
 TO_LAB_CMD_MID = 0x18E8
 TO_LAB_OUTPUT_ENABLE_CC = 2
 TO_LAB_ADD_PKT_CC = 6
-PAYLOAD_IF_CMD_MID = 0x1860
-PAYLOAD_IF_REQ_HK_MID = 0x1861
+PAYLOAD_IF_CMD_MID = 0x1850
+PAYLOAD_IF_REQ_HK_MID = 0x1851
 PAYLOAD_IF_HK_TLM_MID = 0x0860
 PAYLOAD_IF_ENABLE_CC = 2
 PAYLOAD_IF_DISABLE_CC = 3
 PAYOBC_TLM_MID = 0x0011  # APID 0x011, telemetry, no secondary header (ICD RevB D6)
 
 failures = []
-known_issues = []
 
 
 def log(msg):
@@ -52,15 +51,6 @@ def check(condition, description):
     if not condition:
         failures.append(description)
     return condition
-
-
-def check_known_issue(condition, description, issue):
-    """A check expected to fail until a tracked FSW defect is fixed."""
-    if condition:
-        check(False, f"{description} now passes; remove the known issue: {issue}")
-    else:
-        log(f"KNOWN {description} ({issue})")
-        known_issues.append(f"{description}: {issue}")
 
 
 def hexs(data):
@@ -207,13 +197,14 @@ def main():
     check(after["dev_err"] == before["dev_err"] + 1,
           f"PAYLOAD_IF DeviceErrorCount +1 for the length mismatch ({before['dev_err']} -> {after['dev_err']})")
 
-    log("== 7. Disallowed APID is dropped")
-    # PAYLOAD_IF counts allowlist rejections in CommandErrorCount, but its
-    # command MID 0x1860 collides with cFE TIME's tone data command, which
-    # raises that counter about once a second. Only the drop is checked here.
+    log("== 7. Disallowed APID is dropped and counted")
+    before = link.hk()
     link.sim("BAD_APID")
     pkts = link.exchange(8, 8, seconds=3)
     check(pkts == [], "no telemetry published from APID 0x010")
+    after = link.hk()
+    check(after["cmd_err"] == before["cmd_err"] + 1,
+          f"PAYLOAD_IF CommandErrorCount +1 for the disallowed APID ({before['cmd_err']} -> {after['cmd_err']})")
     pkts = link.exchange(9, 9)
     check(pkts == [payobc_status(9, 1, 0x20, 9, 9)], "link recovers: seq 9, accepted 9")
 
@@ -235,9 +226,7 @@ def main():
     link.uplink(cfs_command(PAYLOAD_IF_CMD_MID, PAYLOAD_IF_ENABLE_CC))
     time.sleep(1)
     pkts = link.exchange(12, 13)
-    check_known_issue(pkts == [payobc_status(0x101, 1, 0x20, 13, 2)],
-                      "response after disable/enable: seq 0x101, accepted 2",
-                      "PAYLOAD_IF_Disable stops the RX child task and PAYLOAD_IF_Enable does not restart it")
+    check(pkts == [payobc_status(0x101, 1, 0x20, 13, 2)], "response after disable/enable: seq 0x101, accepted 2")
 
 
 if __name__ == "__main__":
@@ -247,9 +236,7 @@ if __name__ == "__main__":
         failures.append(f"exception: {exc!r}")
         log(f"FAIL  exception: {exc!r}")
     log("")
-    log(f"RESULT: {'FAIL' if failures else 'PASS'} ({len(failures)} failure(s), {len(known_issues)} known issue(s))")
+    log(f"RESULT: {'FAIL' if failures else 'PASS'} ({len(failures)} failure(s))")
     for f in failures:
         log(f"  - {f}")
-    for k in known_issues:
-        log(f"  known: {k}")
     sys.exit(1 if failures else 0)
