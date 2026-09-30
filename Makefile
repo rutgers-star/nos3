@@ -71,7 +71,9 @@ ifeq ($(FLIGHT_SOFTWARE), fprime)
 	cd fsw/fprime/fprime-nos3 && fprime-util generate && fprime-util build && fprime-seqgen Sequences/nos3test.seq -d build-artifacts/Linux/deployment/dict/deploymentTopologyDictionary.json
 else
 	mkdir -p $(FSWBUILDDIR)
-	cd $(FSWBUILDDIR) && cmake $(PREP_OPTS) ../cfe
+	# build-test shares this directory and caches ENABLE_UNIT_TESTS=true, which selects the
+	# unit-test target (Linux hardware drivers) instead of NOS3; always reset it here
+	cd $(FSWBUILDDIR) && cmake $(PREP_OPTS) -DENABLE_UNIT_TESTS=false ../cfe
 	$(MAKE) --no-print-directory -C $(FSWBUILDDIR) mission-install
 endif
 
