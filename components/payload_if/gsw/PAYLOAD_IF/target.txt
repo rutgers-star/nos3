@@ -6,6 +6,10 @@
 #
 #REQUIRE 'mission_lib.rb'
 
+# PAYOBC_STATUS is identified by two fields (the wrapper ID and the inner PayOBC
+# ID) while the other packets use one, so identify each packet by its own fields
+TLM_UNIQUE_ID_MODE
+
 # CCSDS 
 IGNORE_PARAMETER CCSDS_STREAMID
 IGNORE_PARAMETER CCSDS_SEQUENCE
