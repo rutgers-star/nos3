@@ -261,6 +261,12 @@ void Test_PAYLOAD_IF_AppInit(void)
     UT_SetDeferredRetcode(UT_KEY(CFE_SB_Subscribe), 2, CFE_SB_BAD_ARGUMENT);
     UT_TEST_FUNCTION_RC(PAYLOAD_IF_AppInit(), CFE_SB_BAD_ARGUMENT);
 
+    /* The RX task is started by Enable, not at initialization */
+    UtAssert_STUB_COUNT(CFE_ES_CreateChildTask, 0);
+
+    UT_SetDeferredRetcode(UT_KEY(OS_BinSemCreate), 1, OS_ERROR);
+    UT_TEST_FUNCTION_RC(PAYLOAD_IF_AppInit(), OS_ERROR);
+
     // UT_SetDeferredRetcode(UT_KEY(CFE_EVS_SendEvent), 1, CFE_SB_BAD_ARGUMENT);
     // UT_TEST_FUNCTION_RC(PAYLOAD_IF_AppInit(), CFE_SB_BAD_ARGUMENT);
 }
@@ -950,6 +956,196 @@ void Test_PAYLOAD_IF_SendToPayload_FullWriteSucceeds(void)
     UtAssert_INT32_EQ((int32)ok_count_after, (int32)(ok_count_before + 1));
 }
 
+void Test_PAYLOAD_IF_SendToPayload_RevBLiteralVector(void)
+{
+    /*
+     * Test Case For:
+     * void PAYLOAD_IF_SendToPayload(void)
+     * The ICD RevB A1 command packet must leave the UART as the literal frame
+     * from the ICD. The expected bytes are written out rather than produced
+     * by plframe_encode, so an encoder or CRC-coverage change is caught.
+     */
+    uint8_t test_msg[13] = {0x10, 0x10, 0xC0, 0x00, 0x00, 0x06, 0x20, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01};
+    const uint8_t expected_frame[] = {0x1A, 0xCF, 0xFC, 0x1D, 0x00, 0x0D, 0x10, 0x10, 0xC0, 0x00, 0x00,
+                                      0x06, 0x20, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x9B, 0xBA};
+    size_t        msg_size         = sizeof(test_msg);
+
+    PAYLOAD_IF_AppData.MsgPtr = (CFE_MSG_Message_t *)test_msg;
+    Captured_UartWriteLen     = 0;
+
+    UT_SetDataBuffer(UT_KEY(CFE_MSG_GetSize), &msg_size, sizeof(msg_size), false);
+    UT_SetHandlerFunction(UT_KEY(uart_write_port), UartWriteCapture_Hook, NULL);
+    UT_SetDeferredRetcode(UT_KEY(uart_write_port), 1, (int32_t)sizeof(expected_frame));
+
+    PAYLOAD_IF_SendToPayload();
+
+    UtAssert_INT32_EQ((int32)Captured_UartWriteLen, (int32)sizeof(expected_frame));
+    UtAssert_True(memcmp(Captured_UartWriteData, expected_frame, sizeof(expected_frame)) == 0,
+                  "UART write bytes match the ICD RevB literal frame");
+}
+
+void Test_PAYLOAD_IF_ProcessCommandPacket_PayObcCommandMid(void)
+{
+    /*
+     * Test Case For:
+     * void PAYLOAD_IF_ProcessCommandPacket
+     * MID 0x1010 (APID 0x010 telecommand, ICD RevB D6) is forwarded to the
+     * PayOBC. MID 0x0010 (the same APID with the telemetry type bit) is not.
+     */
+    uint8_t         test_msg[13] = {0x10, 0x10, 0xC0, 0x00, 0x00, 0x06, 0x20, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01};
+    size_t          msg_size     = sizeof(test_msg);
+    CFE_SB_MsgId_t  TestMsgId;
+    UT_CheckEvent_t EventTest;
+
+    UtAssert_INT32_EQ(PAYLOAD_IF_PAYOBC_CMD_MID, 0x1010);
+
+    PAYLOAD_IF_AppData.MsgPtr = (CFE_MSG_Message_t *)test_msg;
+    UT_CheckEvent_Setup(&EventTest, PAYLOAD_IF_PROCESS_CMD_ERR_EID, NULL);
+
+    TestMsgId = CFE_SB_ValueToMsgId(PAYLOAD_IF_PAYOBC_CMD_MID);
+    UT_SetDataBuffer(UT_KEY(CFE_MSG_GetMsgId), &TestMsgId, sizeof(TestMsgId), false);
+    UT_SetDataBuffer(UT_KEY(CFE_MSG_GetSize), &msg_size, sizeof(msg_size), false);
+    PAYLOAD_IF_ProcessCommandPacket();
+    UtAssert_STUB_COUNT(uart_write_port, 1);
+    UtAssert_True(EventTest.MatchCount == 0, "PAYLOAD_IF_PROCESS_CMD_ERR_EID not generated (%u)",
+                  (unsigned int)EventTest.MatchCount);
+
+    TestMsgId = CFE_SB_ValueToMsgId(STAR_APID_PAYLOAD_COMMAND);
+    UT_SetDataBuffer(UT_KEY(CFE_MSG_GetMsgId), &TestMsgId, sizeof(TestMsgId), false);
+    PAYLOAD_IF_ProcessCommandPacket();
+    UtAssert_STUB_COUNT(uart_write_port, 1);
+    UtAssert_True(EventTest.MatchCount == 1, "PAYLOAD_IF_PROCESS_CMD_ERR_EID generated for MID 0x0010 (%u)",
+                  (unsigned int)EventTest.MatchCount);
+}
+
+void Test_PAYLOAD_IF_Enable_StartsRxTask(void)
+{
+    /*
+     * Test Case For:
+     * void PAYLOAD_IF_Enable(void)
+     * A successful enable opens the UART and starts the RX task. If the task
+     * cannot be created the UART is closed again and the device stays disabled.
+     */
+    UT_CheckEvent_t EventTest;
+
+    PAYLOAD_IF_AppData.HkTelemetryPkt.DeviceEnabled = PAYLOAD_IF_DEVICE_DISABLED;
+    PAYLOAD_IF_Enable();
+    UtAssert_STUB_COUNT(CFE_ES_CreateChildTask, 1);
+    UtAssert_True(PAYLOAD_IF_AppData.RxTaskRunning, "RX task run flag set");
+    UtAssert_INT32_EQ(PAYLOAD_IF_AppData.HkTelemetryPkt.DeviceEnabled, PAYLOAD_IF_DEVICE_ENABLED);
+
+    UT_CheckEvent_Setup(&EventTest, PAYLOAD_IF_RX_TASK_ERR_EID, NULL);
+    PAYLOAD_IF_AppData.HkTelemetryPkt.DeviceEnabled = PAYLOAD_IF_DEVICE_DISABLED;
+    UT_SetDeferredRetcode(UT_KEY(CFE_ES_CreateChildTask), 1, CFE_ES_ERR_CHILD_TASK_CREATE);
+    PAYLOAD_IF_Enable();
+    UtAssert_True(EventTest.MatchCount == 1, "RX task creation error event (%u)", (unsigned int)EventTest.MatchCount);
+    UtAssert_STUB_COUNT(uart_close_port, 1);
+    UtAssert_True(!PAYLOAD_IF_AppData.RxTaskRunning, "RX task run flag cleared");
+    UtAssert_INT32_EQ(PAYLOAD_IF_AppData.HkTelemetryPkt.DeviceEnabled, PAYLOAD_IF_DEVICE_DISABLED);
+}
+
+void Test_PAYLOAD_IF_Disable_StopsRxTask(void)
+{
+    /*
+     * Test Case For:
+     * void PAYLOAD_IF_Disable(void)
+     * Disable waits for the RX task to leave its loop and releases its task
+     * record before the UART is closed. A task that does not stop in time is
+     * reported and deleted.
+     */
+    UT_CheckEvent_t EventTest;
+
+    UT_CheckEvent_Setup(&EventTest, PAYLOAD_IF_RX_TASK_ERR_EID, NULL);
+    PAYLOAD_IF_AppData.RxTaskRunning                = true;
+    PAYLOAD_IF_AppData.HkTelemetryPkt.DeviceEnabled = PAYLOAD_IF_DEVICE_ENABLED;
+    PAYLOAD_IF_Disable();
+    UtAssert_True(!PAYLOAD_IF_AppData.RxTaskRunning, "RX task run flag cleared");
+    UtAssert_STUB_COUNT(OS_BinSemTimedWait, 1);
+    UtAssert_STUB_COUNT(CFE_ES_DeleteChildTask, 1);
+    UtAssert_STUB_COUNT(uart_close_port, 1);
+    UtAssert_True(EventTest.MatchCount == 0, "no RX task error event (%u)", (unsigned int)EventTest.MatchCount);
+
+    PAYLOAD_IF_AppData.HkTelemetryPkt.DeviceEnabled = PAYLOAD_IF_DEVICE_ENABLED;
+    UT_SetDeferredRetcode(UT_KEY(OS_BinSemTimedWait), 1, OS_SEM_TIMEOUT);
+    PAYLOAD_IF_Disable();
+    UtAssert_True(EventTest.MatchCount == 1, "RX task stop timeout event (%u)", (unsigned int)EventTest.MatchCount);
+    UtAssert_STUB_COUNT(CFE_ES_DeleteChildTask, 2);
+}
+
+void Test_PAYLOAD_IF_DisableThenEnable_RestartsRxTask(void)
+{
+    /*
+     * Test Case For:
+     * void PAYLOAD_IF_Enable(void) / void PAYLOAD_IF_Disable(void)
+     * Regression: reception must resume after disable and re-enable.
+     */
+    PAYLOAD_IF_AppData.HkTelemetryPkt.DeviceEnabled = PAYLOAD_IF_DEVICE_DISABLED;
+    PAYLOAD_IF_Enable();
+    PAYLOAD_IF_Disable();
+    UtAssert_True(!PAYLOAD_IF_AppData.RxTaskRunning, "RX task stopped by disable");
+    PAYLOAD_IF_Enable();
+
+    UtAssert_STUB_COUNT(CFE_ES_CreateChildTask, 2);
+    UtAssert_True(PAYLOAD_IF_AppData.RxTaskRunning, "RX task running again after re-enable");
+    UtAssert_INT32_EQ(PAYLOAD_IF_AppData.HkTelemetryPkt.DeviceEnabled, PAYLOAD_IF_DEVICE_ENABLED);
+}
+
+/* Supplies RxTask_Stream to uart_read_port and stops the RX loop after one cycle */
+static const uint8_t *RxTask_Stream;
+static size_t         RxTask_StreamLen;
+
+static void RxTask_ReadHandler(void *UserObj, UT_EntryKey_t FuncKey, const UT_StubContext_t *Context)
+{
+    uint8_t *data     = UT_Hook_GetArgValueByName(Context, "data", uint8_t *);
+    uint32_t numBytes = UT_Hook_GetArgValueByName(Context, "numBytes", uint32_t);
+    int32_t  count    = (int32_t)(numBytes < RxTask_StreamLen ? numBytes : RxTask_StreamLen);
+
+    memcpy(data, RxTask_Stream, (size_t)count);
+    UT_Stub_SetReturnValue(FuncKey, count);
+}
+
+static int32 RxTask_StopHook(void *UserObj, int32 StubRetcode, uint32 CallCount, const UT_StubContext_t *Context)
+{
+    PAYLOAD_IF_AppData.RxTaskRunning = false;
+    return StubRetcode;
+}
+
+void Test_PAYLOAD_IF_RxTask_TwoFramesInOneRead(void)
+{
+    /*
+     * Test Case For:
+     * void PAYLOAD_IF_RxTask(void)
+     * Everything the UART has buffered is read in one cycle, so two complete
+     * frames delivered together are both published. On exit the task signals
+     * Disable through the exit semaphore.
+     */
+    uint8_t           stream[2 * PL_MAX_FRAME_LEN];
+    const uint8_t     packet[7] = {0x00, 0x11, 0xC0, 0x00, 0x00, 0x00, 0x5A}; /* APID 0x011 telemetry */
+    size_t            len       = 0;
+    CFE_SB_Buffer_t   buffers[2];
+    CFE_SB_Buffer_t  *buffer_ptrs[2] = {&buffers[0], &buffers[1]};
+
+    len += plframe_encode(packet, sizeof(packet), &stream[len]);
+    len += plframe_encode(packet, sizeof(packet), &stream[len]);
+    RxTask_Stream    = stream;
+    RxTask_StreamLen = len;
+
+    plframe_decode_init(&PAYLOAD_IF_AppData.DecodeCtx);
+    PAYLOAD_IF_AppData.RxTaskRunning = true;
+    UT_SetDefaultReturnValue(UT_KEY(uart_bytes_available), (int32)len);
+    UT_SetHandlerFunction(UT_KEY(uart_read_port), RxTask_ReadHandler, NULL);
+    UT_SetHookFunction(UT_KEY(OS_TaskDelay), RxTask_StopHook, NULL);
+    UT_SetDataBuffer(UT_KEY(CFE_SB_AllocateMessageBuffer), buffer_ptrs, sizeof(buffer_ptrs), false);
+
+    PAYLOAD_IF_RxTask();
+
+    UtAssert_STUB_COUNT(uart_read_port, 1);
+    UtAssert_STUB_COUNT(CFE_SB_TransmitBuffer, 2);
+    UtAssert_True(memcmp(&buffers[1], packet, sizeof(packet)) == 0, "second packet published unchanged");
+    UtAssert_STUB_COUNT(OS_BinSemGive, 1);
+    UtAssert_STUB_COUNT(CFE_ES_ExitChildTask, 1);
+}
+
 void Test_PAYLOAD_IF_ResetCounters_ClearsAll(void)
 {
     /*
@@ -1031,4 +1227,10 @@ void UtTest_Setup(void)
     ADD_TEST(PAYLOAD_IF_SendToPayload_FullWriteSucceeds);
     ADD_TEST(PAYLOAD_IF_ResetCounters_ClearsAll);
     ADD_TEST(PAYLOAD_IF_ReportHousekeeping_ReflectsCounters);
+    ADD_TEST(PAYLOAD_IF_SendToPayload_RevBLiteralVector);
+    ADD_TEST(PAYLOAD_IF_ProcessCommandPacket_PayObcCommandMid);
+    ADD_TEST(PAYLOAD_IF_Enable_StartsRxTask);
+    ADD_TEST(PAYLOAD_IF_Disable_StopsRxTask);
+    ADD_TEST(PAYLOAD_IF_DisableThenEnable_RestartsRxTask);
+    ADD_TEST(PAYLOAD_IF_RxTask_TwoFramesInOneRead);
 }

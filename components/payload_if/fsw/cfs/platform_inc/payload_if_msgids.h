@@ -11,13 +11,14 @@
 
 /*
 ** CCSDS V1 Command Message IDs (MID) must be 0x18xx
+** 0x1860 and above is the cFE global command range; 0x1860 is CFE_TIME_DATA_CMD_MID
 */
-#define PAYLOAD_IF_CMD_MID 0x1860
+#define PAYLOAD_IF_CMD_MID 0x1850
 
 /*
 ** This MID is for commands telling the app to publish its telemetry message
 */
-#define PAYLOAD_IF_REQ_HK_MID 0x1861
+#define PAYLOAD_IF_REQ_HK_MID 0x1851
 
 /*
 ** CCSDS V1 Telemetry Message IDs must be 0x08xx

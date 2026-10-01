@@ -165,28 +165,26 @@ int32 PAYLOAD_IF_AppInit(void)
     ** Subscribe to the outbound BusOBC->PayOBC payload command message.
     ** Any packet published to this MID gets forwarded to the PayOBC over UART.
     */
-    status = CFE_SB_Subscribe(CFE_SB_ValueToMsgId(STAR_APID_PAYLOAD_COMMAND), PAYLOAD_IF_AppData.CmdPipe);
+    status = CFE_SB_Subscribe(CFE_SB_ValueToMsgId(PAYLOAD_IF_PAYOBC_CMD_MID), PAYLOAD_IF_AppData.CmdPipe);
     if (status != CFE_SUCCESS)
     {
         CFE_EVS_SendEvent(PAYLOAD_IF_SUB_CMD_ERR_EID, CFE_EVS_EventType_ERROR,
-                          "Error Subscribing to Payload Command, MID=0x%04X, RC=0x%08X", STAR_APID_PAYLOAD_COMMAND,
+                          "Error Subscribing to Payload Command, MID=0x%04X, RC=0x%08X", PAYLOAD_IF_PAYOBC_CMD_MID,
                           (unsigned int)status);
         return status;
     }
 
     /*
-    ** Initialize the payload-link decoder state and start the asynchronous
-    ** UART receive task. Decoder state must persist for the app's lifetime.
+    ** The asynchronous UART receive task runs only while the device is
+    ** enabled (see PAYLOAD_IF_StartRxTask). It gives this semaphore when it
+    ** leaves its loop, so Disable can wait for it before closing the UART.
     */
-    plframe_decode_init(&PAYLOAD_IF_AppData.DecodeCtx);
-    PAYLOAD_IF_AppData.RxTaskRunning = true;
-
-    status = CFE_ES_CreateChildTask(&PAYLOAD_IF_AppData.RxTaskID, PAYLOAD_IF_RX_TASK_NAME, PAYLOAD_IF_RxTask,
-                                    0, PAYLOAD_IF_RX_TASK_STACK_SIZE, PAYLOAD_IF_RX_TASK_PRIORITY, 0);
-    if (status != CFE_SUCCESS)
+    PAYLOAD_IF_AppData.RxTaskRunning = false;
+    status = OS_BinSemCreate(&PAYLOAD_IF_AppData.RxTaskExitSem, PAYLOAD_IF_RX_EXIT_SEM_NAME, 0, 0);
+    if (status != OS_SUCCESS)
     {
-        CFE_EVS_SendEvent(PAYLOAD_IF_STARTUP_INF_EID, CFE_EVS_EventType_ERROR,
-                          "PAYLOAD_IF: Error creating RX task, RC=0x%08X", (unsigned int)status);
+        CFE_EVS_SendEvent(PAYLOAD_IF_RX_TASK_ERR_EID, CFE_EVS_EventType_ERROR,
+                          "PAYLOAD_IF: Error creating RX task semaphore, RC=%d", (int)status);
         return status;
     }
 
@@ -274,7 +272,7 @@ void PAYLOAD_IF_ProcessCommandPacket(void)
         /*
         ** Outbound BusOBC->PayOBC payload command: encode and send over UART
         */
-        case STAR_APID_PAYLOAD_COMMAND:
+        case PAYLOAD_IF_PAYOBC_CMD_MID:
             PAYLOAD_IF_SendToPayload();
             break;
 
@@ -557,7 +555,22 @@ void PAYLOAD_IF_Enable(void)
         PAYLOAD_IF_AppData.Payload_ifUart.access_option = uart_access_flag_RDWR;
 
         status = uart_init_port(&PAYLOAD_IF_AppData.Payload_ifUart);
-        if (status == OS_SUCCESS)
+        if (status != OS_SUCCESS)
+        {
+            /* Increment device error counter */
+            PAYLOAD_IF_AppData.HkTelemetryPkt.DeviceErrorCount++;
+
+            /* Send device event failure to the console */
+            CFE_EVS_SendEvent(PAYLOAD_IF_UART_INIT_ERR_EID, CFE_EVS_EventType_ERROR,
+                              "PAYLOAD_IF: Device UART port initialization error %d", status);
+        }
+        else if (PAYLOAD_IF_StartRxTask() != CFE_SUCCESS)
+        {
+            /* Without a receive task the device cannot be used; StartRxTask sent the event */
+            uart_close_port(&PAYLOAD_IF_AppData.Payload_ifUart);
+            PAYLOAD_IF_AppData.HkTelemetryPkt.DeviceErrorCount++;
+        }
+        else
         {
             PAYLOAD_IF_AppData.HkTelemetryPkt.DeviceEnabled = PAYLOAD_IF_DEVICE_ENABLED;
 
@@ -567,15 +580,6 @@ void PAYLOAD_IF_Enable(void)
             /* Send device event success to the console */
             CFE_EVS_SendEvent(PAYLOAD_IF_ENABLE_INF_EID, CFE_EVS_EventType_INFORMATION,
                               "PAYLOAD_IF: Device enabled successfully");
-        }
-        else
-        {
-            /* Increment device error counter */
-            PAYLOAD_IF_AppData.HkTelemetryPkt.DeviceErrorCount++;
-
-            /* Send device event failure to the console */
-            CFE_EVS_SendEvent(PAYLOAD_IF_UART_INIT_ERR_EID, CFE_EVS_EventType_ERROR,
-                              "PAYLOAD_IF: Device UART port initialization error %d", status);
         }
     }
     else
@@ -608,8 +612,7 @@ void PAYLOAD_IF_Disable(void)
         ** Stop the asynchronous RX task BEFORE closing the UART handle, so it
         ** cannot be mid-read on a handle that's about to be closed.
         */
-        PAYLOAD_IF_AppData.RxTaskRunning = false;
-        OS_TaskDelay(3 * PAYLOAD_IF_RX_TASK_MS_DELAY);
+        PAYLOAD_IF_StopRxTask();
 
         /*
         ** Do the action, close hardware interface and set disabled
@@ -718,15 +721,6 @@ void PAYLOAD_IF_Configure(void)
 }
 
 /*
-** Verify command packet length matches expected
-*/
-/*
-** Asynchronous UART receive task
-** Continuously polls for available UART bytes and feeds them into the
-** persistent payload-link decoder. Runs until RxTaskRunning is cleared
-** by PAYLOAD_IF_Disable.
-*/
-/*
 ** Outbound routing: encode a Software Bus message as a payload-link frame
 ** and write it to UART. Serialized against the RX task via a single write
 ** call per message so bytes from concurrent writes cannot interleave.
@@ -834,11 +828,87 @@ int32 PAYLOAD_IF_HandleDecodedFrame(void)
     }
 }
 
+/*
+** Start the asynchronous UART receive task for a newly opened UART.
+*/
+int32 PAYLOAD_IF_StartRxTask(void)
+{
+    int32 status;
+
+    /* A new UART session starts without a partially decoded frame */
+    plframe_decode_init(&PAYLOAD_IF_AppData.DecodeCtx);
+    PAYLOAD_IF_AppData.RxTaskRunning = true;
+
+    status = CFE_ES_CreateChildTask(&PAYLOAD_IF_AppData.RxTaskID, PAYLOAD_IF_RX_TASK_NAME, PAYLOAD_IF_RxTask, 0,
+                                    PAYLOAD_IF_RX_TASK_STACK_SIZE, PAYLOAD_IF_RX_TASK_PRIORITY, 0);
+    if (status != CFE_SUCCESS)
+    {
+        PAYLOAD_IF_AppData.RxTaskRunning = false;
+        CFE_EVS_SendEvent(PAYLOAD_IF_RX_TASK_ERR_EID, CFE_EVS_EventType_ERROR,
+                          "PAYLOAD_IF: Error creating RX task, RC=0x%08X", (unsigned int)status);
+    }
+    return status;
+}
+
+/*
+** Stop the asynchronous UART receive task and wait for it to leave its loop.
+*/
+void PAYLOAD_IF_StopRxTask(void)
+{
+    int32 status;
+
+    PAYLOAD_IF_AppData.RxTaskRunning = false;
+    status = OS_BinSemTimedWait(PAYLOAD_IF_AppData.RxTaskExitSem, PAYLOAD_IF_RX_TASK_STOP_MS);
+    if (status != OS_SUCCESS)
+    {
+        CFE_EVS_SendEvent(PAYLOAD_IF_RX_TASK_ERR_EID, CFE_EVS_EventType_ERROR,
+                          "PAYLOAD_IF: RX task did not stop within %d ms, RC=%d; deleting it",
+                          PAYLOAD_IF_RX_TASK_STOP_MS, (int)status);
+    }
+
+    /*
+    ** Release the task record so the next Enable can reuse the task name.
+    ** A task that already finished CFE_ES_ExitChildTask has no record left,
+    ** so an error here is expected and ignored.
+    */
+    CFE_ES_DeleteChildTask(PAYLOAD_IF_AppData.RxTaskID);
+}
+
+/*
+** Feed one received byte to the persistent payload-link decoder.
+*/
+static void PAYLOAD_IF_ProcessRxByte(uint8_t byte)
+{
+    switch (plframe_decode_feed(&PAYLOAD_IF_AppData.DecodeCtx, byte))
+    {
+        case PL_DECODE_OK:
+            PAYLOAD_IF_HandleDecodedFrame();
+            break;
+
+        case PL_DECODE_BAD_CRC:
+            PAYLOAD_IF_AppData.HkTelemetryPkt.DeviceErrorCount++;
+            break;
+
+        case PL_DECODE_RESYNC:
+            PAYLOAD_IF_AppData.HkTelemetryPkt.DeviceErrorCount++;
+            break;
+
+        case PL_DECODE_NEED_MORE:
+        default:
+            break;
+    }
+}
+
+/*
+** Asynchronous UART receive task. Each cycle reads every byte the UART has
+** buffered (up to one maximum frame), so the link is serviced at line rate.
+*/
 void PAYLOAD_IF_RxTask(void)
 {
-    uint8_t byte;
+    uint8_t buf[PL_MAX_FRAME_LEN];
     int32   bytes_available;
     int32   bytes_read;
+    int32   i;
 
     while (PAYLOAD_IF_AppData.RxTaskRunning)
     {
@@ -846,39 +916,28 @@ void PAYLOAD_IF_RxTask(void)
 
         if (bytes_available > 0)
         {
-            bytes_read = uart_read_port(&PAYLOAD_IF_AppData.Payload_ifUart, &byte, 1);
-
-            if (bytes_read == 1)
+            if (bytes_available > (int32)sizeof(buf))
             {
-                plframe_decode_result_t result = plframe_decode_feed(&PAYLOAD_IF_AppData.DecodeCtx, byte);
+                bytes_available = (int32)sizeof(buf);
+            }
+            bytes_read = uart_read_port(&PAYLOAD_IF_AppData.Payload_ifUart, buf, (uint32)bytes_available);
 
-                switch (result)
-                {
-                    case PL_DECODE_OK:
-                        PAYLOAD_IF_HandleDecodedFrame();
-                        break;
-
-                    case PL_DECODE_BAD_CRC:
-                        PAYLOAD_IF_AppData.HkTelemetryPkt.DeviceErrorCount++;
-                        break;
-
-                    case PL_DECODE_RESYNC:
-                        PAYLOAD_IF_AppData.HkTelemetryPkt.DeviceErrorCount++;
-                        break;
-
-                    case PL_DECODE_NEED_MORE:
-                    default:
-                        break;
-                }
+            for (i = 0; i < bytes_read; i++)
+            {
+                PAYLOAD_IF_ProcessRxByte(buf[i]);
             }
         }
 
         OS_TaskDelay(PAYLOAD_IF_RX_TASK_MS_DELAY);
     }
 
+    OS_BinSemGive(PAYLOAD_IF_AppData.RxTaskExitSem);
     CFE_ES_ExitChildTask();
 }
 
+/*
+** Verify command packet length matches expected
+*/
 int32 PAYLOAD_IF_VerifyCmdLength(CFE_MSG_Message_t *msg, uint16 expected_length)
 {
     int32             status        = OS_SUCCESS;

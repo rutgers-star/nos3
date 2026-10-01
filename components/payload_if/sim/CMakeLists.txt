@@ -3,6 +3,13 @@ project(payload_if_sim)
 find_package(ITC_Common REQUIRED QUIET COMPONENTS itc_logger)
 find_package(NOSENGINE REQUIRED QUIET COMPONENTS common transport client uart)
 
+# Frame with the same pinned payload-link and payload-apids submodules as the
+# BusOBC FSW (components/payload_if/fsw). The static framing library is linked
+# into a shared simulator library, so it must be position independent.
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../fsw/payload-link ${CMAKE_CURRENT_BINARY_DIR}/payload-link)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../fsw/payload-apids ${CMAKE_CURRENT_BINARY_DIR}/payload-apids)
+set_target_properties(payload_link PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
 include_directories(inc
                     ${sim_common_SOURCE_DIR}/inc
                     ${ITC_Common_INCLUDE_DIRS}
@@ -10,9 +17,7 @@ include_directories(inc
 
 set(payload_if_sim_src
     src/payload_if_hardware_model.cpp
-    src/payload_if_42_data_provider.cpp
-    src/payload_if_data_provider.cpp
-    src/payload_if_data_point.cpp
+    src/payobc_link_model.cpp
 )
 
 # For Code::Blocks and other IDEs
@@ -20,6 +25,8 @@ file(GLOB payload_if_sim_inc inc/*.hpp)
 
 set(payload_if_sim_libs
     sim_common
+    payload_link
+    STAR::payload_apids
     ${ITC_Common_LIBRARIES}
     ${NOSENGINE_LIBRARIES}
 )

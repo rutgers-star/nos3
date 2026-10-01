@@ -28,6 +28,15 @@
 #include "mgr_msgids.h"
 
 /*
+** cFE message ID of payload commands forwarded to the PayOBC. CCSDS v1 message
+** IDs are the first 16 bits of the primary header, so the MID carries the
+** packet type. ICD RevB D6 makes APID 0x010 a telecommand (type bit 0x1000)
+** with no secondary header, which gives MID 0x1010.
+*/
+#define PAYLOAD_IF_CCSDS_TYPE_CMD 0x1000
+#define PAYLOAD_IF_PAYOBC_CMD_MID (PAYLOAD_IF_CCSDS_TYPE_CMD | STAR_APID_PAYLOAD_COMMAND)
+
+/*
 ** Specified pipe depth - how many messages will be queued in the pipe
 */
 #define PAYLOAD_IF_PIPE_DEPTH 32
@@ -72,6 +81,7 @@ typedef struct
     uart_info_t Payload_ifUart; /* Hardware protocol definition */
     CFE_ES_TaskId_t          RxTaskID;      /* Child task ID for asynchronous UART receive */
     volatile bool            RxTaskRunning; /* Set true to run RxTask loop, false to stop it */
+    osal_id_t                RxTaskExitSem; /* Given by RxTask when it leaves its loop */
     plframe_decode_ctx_t     DecodeCtx;     /* Persistent payload-link decoder state */
 
 } PAYLOAD_IF_AppData_t;
@@ -102,6 +112,8 @@ void  PAYLOAD_IF_Disable(void);
 void  PAYLOAD_IF_Configure(void);
 int32 PAYLOAD_IF_VerifyCmdLength(CFE_MSG_Message_t *msg, uint16 expected_length);
 void  PAYLOAD_IF_RxTask(void);
+int32 PAYLOAD_IF_StartRxTask(void);
+void  PAYLOAD_IF_StopRxTask(void);
 void  PAYLOAD_IF_SendToPayload(void);
 int32 PAYLOAD_IF_HandleDecodedFrame(void);
 

@@ -4,24 +4,16 @@
 /*
 ** Includes
 */
-#include <map>
+#include <mutex>
 
-#include <boost/tuple/tuple.hpp>
 #include <boost/property_tree/ptree.hpp>
 
 #include <Client/Bus.hpp>
-#include <Uart/Client/Uart.hpp> /* TODO: Change if your protocol bus is different (e.g. SPI, I2C, etc.) */
+#include <Uart/Client/Uart.hpp>
 
-#include <sim_i_data_provider.hpp>
-#include <payload_if_data_point.hpp>
 #include <sim_i_hardware_model.hpp>
 
-
-/*
-** Defines
-*/
-#define PAYLOAD_IF_SIM_SUCCESS 0
-#define PAYLOAD_IF_SIM_ERROR   1
+#include <payobc_link_model.hpp>
 
 
 /*
@@ -29,7 +21,12 @@
 */
 namespace Nos3
 {
-    /* Standard for a hardware model */
+    /*
+    ** Simulated PayOBC on the BusOBC payload UART. PayObcLinkModel holds the
+    ** protocol behavior; this class connects it to NOS Engine: UART bytes in,
+    ** paced UART writes out on each time tick, and simulator-control commands
+    ** for fault injection.
+    */
     class Payload_ifHardwareModel : public SimIHardwareModel
     {
     public:
@@ -39,22 +36,23 @@ namespace Nos3
 
     private:
         /* Private helper methods */
-        void create_payload_if_hk(std::vector<uint8_t>& out_data); 
-        void create_payload_if_data(std::vector<uint8_t>& out_data); 
-        void uart_read_callback(const uint8_t *buf, size_t len); /* Handle data the hardware receives from its protocol bus */
-        void command_callback(NosEngine::Common::Message msg); /* Handle backdoor commands and time tick to the simulator */
+        void uart_read_callback(const uint8_t *buf, size_t len); /* Bytes from the BusOBC */
+        void time_tick_callback(NosEngine::Common::SimTime time); /* Paced UART transmit */
+        void command_callback(NosEngine::Common::Message msg); /* Simulator control and fault injection */
+        std::string process_command(const std::string& command);
+        std::string counters_string(void) const;
 
         /* Private data members */
-        std::unique_ptr<NosEngine::Uart::Uart>              _uart_connection; /* TODO: Change if your protocol bus is different (e.g. SPI, I2C, etc.) */
-        std::unique_ptr<NosEngine::Client::Bus>             _time_bus; /* Standard */
+        std::unique_ptr<NosEngine::Uart::Uart>              _uart_connection;
+        std::unique_ptr<NosEngine::Client::Bus>             _time_bus;
 
-        SimIDataProvider*                                   _payload_if_dp; /* Only needed if the sim has a data provider */
-
-        /* Internal state data */
-        std::uint8_t                                        _enabled;
-        std::uint32_t                                       _count;
-        std::uint32_t                                       _config;
-        std::uint32_t                                       _status;
+        /* Guards everything below; UART, tick, and command callbacks run on different threads */
+        mutable std::mutex                                  _mutex;
+        PayObcLinkModel                                     _model;
+        bool                                                _enabled;
+        std::uint16_t                                       _seed;
+        double                                              _tx_bytes_per_tick; /* UART line rate per time tick */
+        double                                              _tx_credit;         /* Bytes the UART may accept now */
     };
 }
 

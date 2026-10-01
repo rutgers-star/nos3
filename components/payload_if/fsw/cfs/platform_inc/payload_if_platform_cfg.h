@@ -30,6 +30,8 @@
 #define PAYLOAD_IF_RX_TASK_STACK_SIZE    2048
 #define PAYLOAD_IF_RX_TASK_PRIORITY      80
 #define PAYLOAD_IF_RX_TASK_MS_DELAY      10
+#define PAYLOAD_IF_RX_EXIT_SEM_NAME      "PAYLOAD_IF_RXSEM"
+#define PAYLOAD_IF_RX_TASK_STOP_MS       1000 /* Disable waits this long for the RX task to stop */
 /* Note: Debug flag disabled (commented out) by default */
 //#define PAYLOAD_IF_CFG_DEBUG
 #endif

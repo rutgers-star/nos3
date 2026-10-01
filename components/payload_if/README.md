@@ -36,6 +36,10 @@ A NOS3 simulation is available which includes both payload_if and 42 data provid
 
 
 # Device Communications
+> **Superseded.** The BusOBC and PayOBC now exchange complete CCSDS packets inside payload-link
+> frames (see the BusOBC-PayOBC integration contract). The simulator side is documented in
+> [sim/README.md](sim/README.md). The legacy protocol below is kept for reference only.
+
 The protocol, commands, and responses of the component are captured below.
 
 ## Protocol
@@ -90,43 +94,8 @@ Refer to the file [fsw/platform_inc/payload_if_platform_cfg.h](fsw/platform_inc/
 configuration settings, as well as a summary on overriding parameters in mission-specific repositories.
 
 ## Simulation
-The default configuration returns data that is X * 0.001, Y * 0.002, and Z * 0.003 the request count after conversions:
-```
-<simulator>
-    <name>payload_if_sim</name>
-    <active>true</active>
-    <library>libpayload_if_sim.so</library>
-    <hardware-model>
-        <type>PAYLOAD_IF</type>
-        <connections>
-            <connection><type>command</type>
-                <bus-name>command</bus-name>
-                <node-name>payload_if-sim-command-node</node-name>
-            </connection>
-            <connection><type>usart</type>
-                <bus-name>usart_29</bus-name>
-                <node-port>29</node-port>
-            </connection>
-        </connections>
-        <data-provider>
-            <type>PAYLOAD_IF_PROVIDER</type>
-        </data-provider>
-    </hardware-model>
-</simulator>
-```
-
-## 42
-Optionally the 42 data provider can be configured in the `nos3-simulator.xml`:
-```
-        <data-provider>
-            <type>PAYLOAD_IF_42_PROVIDER</type>
-            <hostname>localhost</hostname>
-            <port>4242</port>
-            <max-connection-attempts>5</max-connection-attempts>
-            <retry-wait-seconds>5</retry-wait-seconds>
-            <spacecraft>0</spacecraft>
-        </data-provider>
-```
+The simulator is a deterministic PayOBC link model. Its behavior, status telemetry layout, packet
+vectors, fault-injection controls, and tests are documented in [sim/README.md](sim/README.md).
 
 
 # Standalone
