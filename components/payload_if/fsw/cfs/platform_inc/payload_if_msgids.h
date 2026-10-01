@@ -27,11 +27,12 @@
 #define PAYLOAD_IF_DEVICE_TLM_MID 0x0861
 
 /*
-** PayOBC telemetry that PAYLOAD_IF publishes unchanged from the payload link:
-** APID 0x011 as a telemetry packet without a secondary header (ICD RevB D6).
-** Kept numeric for the TO/TO_LAB tables; payload_if_app.c checks it against
-** STAR_APID_PAYLOAD_TELEMETRY from payload-apids.
+** PayOBC packets to and from the ground. Payload APIDs stay on the
+** BusOBC-PayOBC link; across the space link they travel inside PAYLOAD_IF
+** messages (contract: payload ground interface):
+**   uplink:   PAYLOAD_IF_CMD_MID / PAYLOAD_IF_FORWARD_CC, PayOBC packet as data
+**   downlink: PAYLOAD_IF_PAYOBC_TLM_MID, BusOBC receive time + PayOBC packet
 */
-#define PAYLOAD_IF_PAYOBC_TLM_MID 0x0011
+#define PAYLOAD_IF_PAYOBC_TLM_MID 0x0862
 
 #endif /* _PAYLOAD_IF_MSGIDS_H_ */

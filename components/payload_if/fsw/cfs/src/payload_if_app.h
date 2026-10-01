@@ -73,6 +73,7 @@ typedef struct
      ** TODO: Make specific to your application
      */
     PAYLOAD_IF_Device_tlm_t DevicePkt; /* Device specific data packet */
+    PAYLOAD_IF_PayObc_tlm_t PayObcTlmPkt; /* PayOBC packet wrapped for the ground (RX task only) */
 
     /*
     ** Device protocol
@@ -118,6 +119,8 @@ void  PAYLOAD_IF_RxTask(void);
 int32 PAYLOAD_IF_StartRxTask(void);
 void  PAYLOAD_IF_StopRxTask(void);
 void  PAYLOAD_IF_SendToPayload(void);
+void  PAYLOAD_IF_SendPacketToPayload(const uint8 *Packet, size_t Length);
+void  PAYLOAD_IF_ForwardToPayload(void);
 int32 PAYLOAD_IF_HandleDecodedFrame(void);
 
 /* TODO: This is specific to the payload_if application, remove if using template generator */
