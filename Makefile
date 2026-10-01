@@ -73,6 +73,9 @@ build-cryptolib: ## Build CryptoLib Component, ## -DSTANDALONE_TCP=0 if using ud
 	cd $(GSWBUILDDIR) && cmake $(PREP_OPTS) -DCRYPTO_RX_GROUND_PORT=$(CRYPTO_RX_GROUND_PORT) -DCRYPTO_TX_GROUND_PORT=$(CRYPTO_TX_GROUND_PORT) -DCRYPTO_TX_RADIO_PORT=$(CRYPTO_TX_RADIO_PORT) -DCRYPTO_RX_RADIO_PORT=$(CRYPTO_RX_RADIO_PORT) -DSA_FILE=OFF -DSUPPORT=1 -DCRYPTO_LIBGCRYPT=1 -DSA_INTERNAL=1 -DMC_INTERNAL=1 -DKEY_INTERNAL=1 $(CRYPTOLIB_SRC)
 	$(MAKE) --no-print-directory -C $(GSWBUILDDIR)
 
+test-cryptolib: ## Test the CryptoLib ground-tool patches (after build-cryptolib)
+	./scripts/gsw/patches/cryptolib/test/test_spp_forwarding.sh
+
 build-fsw: ## Build the flight software (cFS or F')
 ifeq ($(FLIGHT_SOFTWARE), fprime)
 	cd fsw/fprime/fprime-nos3 && fprime-util generate && fprime-util build && fprime-seqgen Sequences/nos3test.seq -d build-artifacts/Linux/deployment/dict/deploymentTopologyDictionary.json

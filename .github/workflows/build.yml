@@ -1,7 +1,9 @@
 name: Build
 
-on: 
+on:
   pull_request:
+  push:
+    branches: [ main, develop, dev ]
 
 env:
   CTEST_OUTPUT_ON_FAILURE: true
@@ -21,11 +23,30 @@ jobs:
             fetch-depth: 1
             submodules: recursive
         - name: config
-          run: make config  
+          run: make config
         - name: build
           run: make build-test
         - name: test
           run: make test-fsw
+
+    # The unit tests above build each app against stubs for the amd64-posix
+    # target; this job builds the flight software that NOS3 actually runs.
+    fsw-flight:
+      runs-on: ubuntu-latest
+      container:
+        image: ivvitc/nos3-64:20260619
+      steps:
+        - uses: actions/checkout@v4
+          with:
+            fetch-depth: 1
+            submodules: recursive
+        - name: config
+          run: make config
+        - name: build
+          run: make build-fsw
+        - name: check NOS3 target
+          # A unit-test target build would use the Linux hardware drivers instead
+          run: nm -D fsw/build/exe/cpu1/core-cpu1 | grep -q NE_uart_open3
 
     sim:
       runs-on: ubuntu-latest
@@ -37,9 +58,59 @@ jobs:
             fetch-depth: 1
             submodules: recursive
         - name: config
-          run: make config  
+          run: make config
         - name: build
           run: make build-sim
+        - name: test
+          # Each components/<name>/sim/test is a standalone CMake project of unit tests
+          run: |
+            for project in components/*/sim/test/CMakeLists.txt; do
+              [ -e "$project" ] || continue
+              dir=$(dirname "$project")
+              name=$(basename "$(dirname "$(dirname "$dir")")")
+              echo "== $name simulator tests"
+              cmake -S "$dir" -B "sims/build/test-$name"
+              cmake --build "sims/build/test-$name" -j "$(nproc)"
+              ctest --test-dir "sims/build/test-$name" --output-on-failure
+            done
+
+    gsw-cryptolib:
+      runs-on: ubuntu-latest
+      container:
+        image: ivvitc/nos3-64:20260619
+      env:
+        # Same ports scripts/env.sh passes to the CryptoLib build
+        CRYPTO_RX_GROUND_PORT: 6010
+        CRYPTO_TX_GROUND_PORT: 6011
+        CRYPTO_TX_RADIO_PORT: 8010
+        CRYPTO_RX_RADIO_PORT: 8011
+      steps:
+        - uses: actions/checkout@v4
+          with:
+            fetch-depth: 1
+            submodules: recursive
+        - name: build
+          run: make build-cryptolib
+        - name: test
+          run: make test-cryptolib
+
+    # Builds the OpenC3 plugin and validates every target's command and
+    # telemetry definitions, without starting OpenC3. Runs on the host because
+    # the OpenC3 CLI runs in its own container.
+    gsw-openc3:
+      runs-on: ubuntu-latest
+      steps:
+        - uses: actions/checkout@v4
+          with:
+            fetch-depth: 1
+            submodules: recursive
+        - name: build and validate plugin
+          env:
+            OPENC3_PLUGIN_ONLY: 1
+          # The OpenC3 CLI needs a terminal; script provides one
+          run: |
+            mkdir -p ~/.nos3
+            script -qec "bash scripts/gsw/gsw_openc3_build.sh" /dev/null
 
     coverage:
       runs-on: ubuntu-latest
@@ -48,7 +119,7 @@ jobs:
       steps:
         - uses: actions/checkout@v4
           with:
-            fetch-depth: 0  
+            fetch-depth: 0
             submodules: recursive
         - name: Configure Safe Directory
           run: git config --global --add safe.directory $GITHUB_WORKSPACE
