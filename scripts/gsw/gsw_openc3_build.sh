@@ -66,20 +66,27 @@ if ! grep -qx "OPENC3_TAG=${OPENC3_IMAGE_TAG}" "$OPENC3_DIR/.env"; then
     exit 1
 fi
 
-$DOCKER_COMPOSE_COMMAND -f "$OPENC3_DIR/compose.yaml" pull
-verify_openc3_image openc3inc/openc3-operator sha256:84bfd997268b9319722d6ce5de95c757e3d891261483a587eed8f9cc55803633
-verify_openc3_image openc3inc/openc3-redis sha256:a0e6c008477e180c25ee991c9753d8961e5a306462935348fa135a7a0ca1eb81
-verify_openc3_image openc3inc/openc3-cosmos-script-runner-api sha256:b4c44de4fe7191908150a4f3cea55071066b7652a83333c1e13cb68bd4173d68
-verify_openc3_image openc3inc/openc3-cosmos-cmd-tlm-api sha256:a07ac21127495fd34fc6da347418dd88e46ede5f525d6d12e75d37adaaef5480
-verify_openc3_image openc3inc/openc3-traefik sha256:92388c190e46c27be59ac755efe7a8c99f296e33a0f71376ebc0974a90e19f54
-verify_openc3_image openc3inc/openc3-cosmos-init sha256:963b3beda3d9f99d51fa85ddc3dfbc817ad90366574d16def84c88f503814acf
-verify_openc3_image openc3inc/openc3-minio sha256:8e59cd6ce26fda7721c2b2fafda371d1139a23f7f7c9886a0168e03b7a54cc3c
-echo ""
+# OPENC3_PLUGIN_ONLY=1 (used by CI) builds and validates the plugin without
+# starting OpenC3 or installing it, so only the CLI image is needed.
+if [ "${OPENC3_PLUGIN_ONLY:-0}" = "1" ]; then
+    $DOCKER_COMPOSE_COMMAND -f "$OPENC3_DIR/compose.yaml" pull openc3-cosmos-cmd-tlm-api
+    verify_openc3_image openc3inc/openc3-cosmos-cmd-tlm-api sha256:a07ac21127495fd34fc6da347418dd88e46ede5f525d6d12e75d37adaaef5480
+else
+    $DOCKER_COMPOSE_COMMAND -f "$OPENC3_DIR/compose.yaml" pull
+    verify_openc3_image openc3inc/openc3-operator sha256:84bfd997268b9319722d6ce5de95c757e3d891261483a587eed8f9cc55803633
+    verify_openc3_image openc3inc/openc3-redis sha256:a0e6c008477e180c25ee991c9753d8961e5a306462935348fa135a7a0ca1eb81
+    verify_openc3_image openc3inc/openc3-cosmos-script-runner-api sha256:b4c44de4fe7191908150a4f3cea55071066b7652a83333c1e13cb68bd4173d68
+    verify_openc3_image openc3inc/openc3-cosmos-cmd-tlm-api sha256:a07ac21127495fd34fc6da347418dd88e46ede5f525d6d12e75d37adaaef5480
+    verify_openc3_image openc3inc/openc3-traefik sha256:92388c190e46c27be59ac755efe7a8c99f296e33a0f71376ebc0974a90e19f54
+    verify_openc3_image openc3inc/openc3-cosmos-init sha256:963b3beda3d9f99d51fa85ddc3dfbc817ad90366574d16def84c88f503814acf
+    verify_openc3_image openc3inc/openc3-minio sha256:8e59cd6ce26fda7721c2b2fafda371d1139a23f7f7c9886a0168e03b7a54cc3c
+    echo ""
 
-echo "Launch openc3 containers..."
-cd $OPENC3_DIR
-$OPENC3_PATH run
-echo ""
+    echo "Launch openc3 containers..."
+    cd $OPENC3_DIR
+    $OPENC3_PATH run
+    echo ""
+fi
 
 #echo "Set a password in openc3 via firefox..."
 #echo "  Refresh webpage if error page shown."
@@ -212,6 +219,22 @@ then
     exit 1
 fi
 echo ""
+
+# The plugin Rakefile ignores validation failures, so validate explicitly:
+# this parses every target's command and telemetry definitions
+echo "Validate plugin..."
+if ! $OPENC3_CLI validate ./openc3-cosmos-nos3-1.0.$DATE.gem DEFAULT; then
+    echo ""
+    echo "ERROR: plugin validation failed!"
+    echo ""
+    exit 1
+fi
+echo ""
+
+if [ "${OPENC3_PLUGIN_ONLY:-0}" = "1" ]; then
+    echo "OpenC3 plugin built and validated (OPENC3_PLUGIN_ONLY=1: not installed)."
+    exit 0
+fi
 
 ## Install plugin
 echo "Install plugin..."
