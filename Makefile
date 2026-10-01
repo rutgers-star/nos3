@@ -71,7 +71,12 @@ ifeq ($(FLIGHT_SOFTWARE), fprime)
 	cd fsw/fprime/fprime-nos3 && fprime-util generate && fprime-util build && fprime-seqgen Sequences/nos3test.seq -d build-artifacts/Linux/deployment/dict/deploymentTopologyDictionary.json
 else
 	mkdir -p $(FSWBUILDDIR)
-	cd $(FSWBUILDDIR) && cmake $(PREP_OPTS) ../cfe
+	# build-test shares this directory and caches ENABLE_UNIT_TESTS=true, which selects the
+	# unit-test target (Linux hardware drivers) instead of NOS3; always reset it here
+	cd $(FSWBUILDDIR) && cmake $(PREP_OPTS) -DENABLE_UNIT_TESTS=false ../cfe
+	# Table rule files are shared by both targets and only written when missing, so after
+	# a unit-test build they would keep pointing at the unit-test table objects
+	rm -f $(FSWBUILDDIR)/tables/*.d
 	$(MAKE) --no-print-directory -C $(FSWBUILDDIR) mission-install
 endif
 
@@ -86,6 +91,8 @@ ifeq ($(FLIGHT_SOFTWARE), fprime)
 else
 	mkdir -p $(FSWBUILDDIR)
 	cd $(FSWBUILDDIR) && cmake $(PREP_OPTS) -DENABLE_UNIT_TESTS=true ../cfe
+	# Regenerate table rule files for this target (see build-fsw)
+	rm -f $(FSWBUILDDIR)/tables/*.d
 	$(MAKE) --no-print-directory -C $(FSWBUILDDIR) mission-install
 endif
 
@@ -174,6 +181,8 @@ help: ## Display this help message
 	@printf "%-20s %s\n" "help"          "Display this help message"
 	@printf "%-20s %s\n" "help-all"      "Display advanced help information"
 	@printf "%-20s %s\n" "launch"        "Launch NOS3 System"
+	@printf "%-20s %s\n" ""              "  HEADLESS=1: run containers detached instead of in terminal tabs"
+	@printf "%-20s %s\n" ""              "  COMPONENTS=\"eps rw ...\": start only these simulated components"
 	@printf "%-20s %s\n" "prep"          "Prepare full development environment"
 	@printf "%-20s %s\n" "stop"          "Stop entire system"
 	@printf "%-20s %s\n" "uninstall"     "Remove all build artifacts and containers"
@@ -232,7 +241,7 @@ help-all: ## Displays advanced help information
 igniter: ## Launch Configuration GUI Igniter
 	./scripts/cfg/igniter_launch.sh
 
-launch: ## Launch NOS3 System
+launch: ## Launch NOS3 System; options HEADLESS=1 and COMPONENTS="..." (see scripts/fsw/fsw_cfs_launch.sh)
 	./cfg/build/launch.sh
 
 log: ## Log outputs
