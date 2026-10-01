@@ -7,6 +7,7 @@ BUILDTYPE ?= debug
 INSTALLPREFIX ?= exe
 FSWBUILDDIR ?= $(CURDIR)/fsw/build
 GSWBUILDDIR ?= $(CURDIR)/gsw/build
+CRYPTOLIB_SRC ?= $(GSWBUILDDIR)/cryptolib-src
 SIMBUILDDIR ?= $(CURDIR)/sims/build
 COVERAGEDIR ?= $(CURDIR)/fsw/build/amd64-posix/default_cpu1
 
@@ -62,8 +63,14 @@ all: ## Build everything: config, fsw, sim, gsw
 
 build-cryptolib: ## Build CryptoLib Component, ## -DSTANDALONE_TCP=0 if using udp for cryptolib in the loop
 	mkdir -p $(GSWBUILDDIR)
+	# Build from a copy with the patches in scripts/gsw/patches/cryptolib applied, so the
+	# submodule stays pristine; reset the CMake cache if it was made for another source dir
+	rm -rf $(CRYPTOLIB_SRC) && mkdir -p $(CRYPTOLIB_SRC)
+	cp -a components/cryptolib/. $(CRYPTOLIB_SRC)/ && rm -f $(CRYPTOLIB_SRC)/.git
+	for p in scripts/gsw/patches/cryptolib/*.patch; do patch -d $(CRYPTOLIB_SRC) -p1 --batch --forward < $$p || exit 1; done
+	grep -qx "CMAKE_HOME_DIRECTORY:INTERNAL=$(CRYPTOLIB_SRC)" $(GSWBUILDDIR)/CMakeCache.txt 2>/dev/null || rm -rf $(GSWBUILDDIR)/CMakeCache.txt $(GSWBUILDDIR)/CMakeFiles
 # 	cd $(GSWBUILDDIR) && cmake $(PREP_OPTS) -DSTANDALONE_TCP=0 -DCRYPTO_RX_GROUND_PORT=$(CRYPTO_RX_GROUND_PORT) -DCRYPTO_TX_GROUND_PORT=$(CRYPTO_TX_GROUND_PORT) -DCRYPTO_TX_RADIO_PORT=$(CRYPTO_TX_RADIO_PORT) -DCRYPTO_RX_RADIO_PORT=$(CRYPTO_RX_RADIO_PORT) -DSA_FILE=OFF -DSUPPORT=1 -DCRYPTO_LIBGCRYPT=1 -DSA_INTERNAL=1 -DMC_INTERNAL=1 -DKEY_INTERNAL=1 ../../components/cryptolib
-	cd $(GSWBUILDDIR) && cmake $(PREP_OPTS) -DCRYPTO_RX_GROUND_PORT=$(CRYPTO_RX_GROUND_PORT) -DCRYPTO_TX_GROUND_PORT=$(CRYPTO_TX_GROUND_PORT) -DCRYPTO_TX_RADIO_PORT=$(CRYPTO_TX_RADIO_PORT) -DCRYPTO_RX_RADIO_PORT=$(CRYPTO_RX_RADIO_PORT) -DSA_FILE=OFF -DSUPPORT=1 -DCRYPTO_LIBGCRYPT=1 -DSA_INTERNAL=1 -DMC_INTERNAL=1 -DKEY_INTERNAL=1 ../../components/cryptolib
+	cd $(GSWBUILDDIR) && cmake $(PREP_OPTS) -DCRYPTO_RX_GROUND_PORT=$(CRYPTO_RX_GROUND_PORT) -DCRYPTO_TX_GROUND_PORT=$(CRYPTO_TX_GROUND_PORT) -DCRYPTO_TX_RADIO_PORT=$(CRYPTO_TX_RADIO_PORT) -DCRYPTO_RX_RADIO_PORT=$(CRYPTO_RX_RADIO_PORT) -DSA_FILE=OFF -DSUPPORT=1 -DCRYPTO_LIBGCRYPT=1 -DSA_INTERNAL=1 -DMC_INTERNAL=1 -DKEY_INTERNAL=1 $(CRYPTOLIB_SRC)
 	$(MAKE) --no-print-directory -C $(GSWBUILDDIR)
 
 build-fsw: ## Build the flight software (cFS or F')
