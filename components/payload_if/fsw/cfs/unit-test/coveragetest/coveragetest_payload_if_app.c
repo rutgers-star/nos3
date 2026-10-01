@@ -1146,6 +1146,107 @@ void Test_PAYLOAD_IF_RxTask_TwoFramesInOneRead(void)
     UtAssert_STUB_COUNT(CFE_ES_ExitChildTask, 1);
 }
 
+void Test_PAYLOAD_IF_ProcessHkTick(void)
+{
+    /*
+     * Test Case For:
+     * void PAYLOAD_IF_ProcessHkTick(void)
+     * Housekeeping is reported on every HkPeriodSec-th tick and never when
+     * the period is 0. The default period is set at initialization.
+     */
+    int tick;
+
+    PAYLOAD_IF_AppInit();
+    UtAssert_INT32_EQ(PAYLOAD_IF_AppData.HkTelemetryPkt.HkPeriodSec, PAYLOAD_IF_HK_PERIOD_SEC_DEFAULT);
+    UT_ResetState(UT_KEY(CFE_SB_TransmitMsg));
+
+    PAYLOAD_IF_AppData.HkTelemetryPkt.HkPeriodSec = 3;
+    PAYLOAD_IF_AppData.HkTickCount                = 0;
+    PAYLOAD_IF_ProcessHkTick();
+    PAYLOAD_IF_ProcessHkTick();
+    UtAssert_STUB_COUNT(CFE_SB_TransmitMsg, 0);
+    PAYLOAD_IF_ProcessHkTick();
+    UtAssert_STUB_COUNT(CFE_SB_TransmitMsg, 1);
+    for (tick = 0; tick < 3; tick++)
+    {
+        PAYLOAD_IF_ProcessHkTick();
+    }
+    UtAssert_STUB_COUNT(CFE_SB_TransmitMsg, 2);
+
+    PAYLOAD_IF_AppData.HkTelemetryPkt.HkPeriodSec = 0;
+    for (tick = 0; tick < 10; tick++)
+    {
+        PAYLOAD_IF_ProcessHkTick();
+    }
+    UtAssert_STUB_COUNT(CFE_SB_TransmitMsg, 2);
+}
+
+void Test_PAYLOAD_IF_HkTickRequestDispatch(void)
+{
+    /*
+     * Test Case For:
+     * void PAYLOAD_IF_ProcessTelemetryRequest(void)
+     * The SCH tick (request code PAYLOAD_IF_HK_TICK) drives periodic housekeeping.
+     */
+    CFE_SB_MsgId_t    TestMsgId = CFE_SB_ValueToMsgId(PAYLOAD_IF_REQ_HK_MID);
+    CFE_MSG_FcnCode_t FcnCode   = PAYLOAD_IF_HK_TICK;
+
+    PAYLOAD_IF_AppData.HkTelemetryPkt.HkPeriodSec = 1;
+    PAYLOAD_IF_AppData.HkTickCount                = 0;
+    PAYLOAD_IF_AppData.HkTelemetryPkt.CommandCount = 0;
+    UT_SetDataBuffer(UT_KEY(CFE_MSG_GetMsgId), &TestMsgId, sizeof(TestMsgId), false);
+    UT_SetDataBuffer(UT_KEY(CFE_MSG_GetFcnCode), &FcnCode, sizeof(FcnCode), false);
+    PAYLOAD_IF_ProcessTelemetryRequest();
+    UtAssert_STUB_COUNT(CFE_SB_TransmitMsg, 1);
+    UtAssert_INT32_EQ(PAYLOAD_IF_AppData.HkTelemetryPkt.CommandCount, 0);
+}
+
+void Test_PAYLOAD_IF_SetHkPeriod(void)
+{
+    /*
+     * Test Case For:
+     * void PAYLOAD_IF_SetHkPeriod(void)
+     * A period up to the maximum is applied and restarts the tick count; a
+     * larger one is rejected and leaves the period unchanged. The command is
+     * dispatched through ProcessGroundCommand with its length checked.
+     */
+    PAYLOAD_IF_SetHkPeriod_cmd_t Cmd;
+    CFE_SB_MsgId_t               TestMsgId = CFE_SB_ValueToMsgId(PAYLOAD_IF_CMD_MID);
+    CFE_MSG_FcnCode_t            FcnCode   = PAYLOAD_IF_SET_HK_PERIOD_CC;
+    size_t                       MsgSize   = sizeof(Cmd);
+    UT_CheckEvent_t              EventInf;
+    UT_CheckEvent_t              EventErr;
+
+    memset(&Cmd, 0, sizeof(Cmd));
+    PAYLOAD_IF_AppData.MsgPtr                         = (CFE_MSG_Message_t *)&Cmd;
+    PAYLOAD_IF_AppData.HkTelemetryPkt.HkPeriodSec     = 5;
+    PAYLOAD_IF_AppData.HkTickCount                    = 4;
+    PAYLOAD_IF_AppData.HkTelemetryPkt.CommandCount    = 0;
+    PAYLOAD_IF_AppData.HkTelemetryPkt.CommandErrorCount = 0;
+
+    UT_CheckEvent_Setup(&EventInf, PAYLOAD_IF_CMD_HK_PERIOD_INF_EID, NULL);
+    Cmd.HkPeriodSec = 10;
+    UT_SetDataBuffer(UT_KEY(CFE_MSG_GetMsgId), &TestMsgId, sizeof(TestMsgId), false);
+    UT_SetDataBuffer(UT_KEY(CFE_MSG_GetFcnCode), &FcnCode, sizeof(FcnCode), false);
+    UT_SetDataBuffer(UT_KEY(CFE_MSG_GetSize), &MsgSize, sizeof(MsgSize), false);
+    PAYLOAD_IF_ProcessGroundCommand();
+    UtAssert_INT32_EQ(PAYLOAD_IF_AppData.HkTelemetryPkt.HkPeriodSec, 10);
+    UtAssert_INT32_EQ(PAYLOAD_IF_AppData.HkTickCount, 0);
+    UtAssert_INT32_EQ(PAYLOAD_IF_AppData.HkTelemetryPkt.CommandCount, 1);
+    UtAssert_True(EventInf.MatchCount == 1, "HK period set event (%u)", (unsigned int)EventInf.MatchCount);
+
+    UT_CheckEvent_Setup(&EventErr, PAYLOAD_IF_CMD_HK_PERIOD_ERR_EID, NULL);
+    Cmd.HkPeriodSec = PAYLOAD_IF_HK_PERIOD_SEC_MAX + 1;
+    PAYLOAD_IF_SetHkPeriod();
+    UtAssert_INT32_EQ(PAYLOAD_IF_AppData.HkTelemetryPkt.HkPeriodSec, 10);
+    UtAssert_INT32_EQ(PAYLOAD_IF_AppData.HkTelemetryPkt.CommandErrorCount, 1);
+    UtAssert_True(EventErr.MatchCount == 1, "HK period rejected event (%u)", (unsigned int)EventErr.MatchCount);
+
+    Cmd.HkPeriodSec = 0;
+    PAYLOAD_IF_SetHkPeriod();
+    UtAssert_INT32_EQ(PAYLOAD_IF_AppData.HkTelemetryPkt.HkPeriodSec, 0);
+}
+
 void Test_PAYLOAD_IF_ResetCounters_ClearsAll(void)
 {
     /*
@@ -1233,4 +1334,7 @@ void UtTest_Setup(void)
     ADD_TEST(PAYLOAD_IF_Disable_StopsRxTask);
     ADD_TEST(PAYLOAD_IF_DisableThenEnable_RestartsRxTask);
     ADD_TEST(PAYLOAD_IF_RxTask_TwoFramesInOneRead);
+    ADD_TEST(PAYLOAD_IF_ProcessHkTick);
+    ADD_TEST(PAYLOAD_IF_HkTickRequestDispatch);
+    ADD_TEST(PAYLOAD_IF_SetHkPeriod);
 }

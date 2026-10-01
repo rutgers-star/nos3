@@ -21,6 +21,7 @@
 #define PAYLOAD_IF_ENABLE_CC         2
 #define PAYLOAD_IF_DISABLE_CC        3
 #define PAYLOAD_IF_CONFIG_CC         4
+#define PAYLOAD_IF_SET_HK_PERIOD_CC  5
 
 /*
 ** Telemetry Request Command Codes
@@ -28,6 +29,7 @@
 */
 #define PAYLOAD_IF_REQ_HK_TLM   0
 #define PAYLOAD_IF_REQ_DATA_TLM 1
+#define PAYLOAD_IF_HK_TICK      2 /* Sent by SCH once per second; drives periodic housekeeping */
 
 /*
 ** Generic "no arguments" command type definition
@@ -48,6 +50,16 @@ typedef struct
     uint32                  DeviceCfg;
 
 } PAYLOAD_IF_Config_cmd_t;
+
+/*
+** PAYLOAD_IF set housekeeping period command
+*/
+typedef struct
+{
+    CFE_MSG_CommandHeader_t CmdHeader;
+    uint16                  HkPeriodSec; /* Seconds between periodic HK reports; 0 disables them */
+
+} PAYLOAD_IF_SetHkPeriod_cmd_t;
 
 /*
 ** PAYLOAD_IF device telemetry definition
@@ -80,6 +92,7 @@ typedef struct
     */
     uint8                  DeviceEnabled;
     PAYLOAD_IF_Device_HK_tlm_t DeviceHK;
+    uint16                 HkPeriodSec; /* Seconds between periodic HK reports; 0 = off */
 
 } __attribute__((packed)) PAYLOAD_IF_Hk_tlm_t;
 #define PAYLOAD_IF_HK_TLM_LNGTH sizeof(PAYLOAD_IF_Hk_tlm_t)

@@ -226,6 +226,8 @@ int32 PAYLOAD_IF_AppInit(void)
     PAYLOAD_IF_AppData.HkTelemetryPkt.DeviceHK.DeviceCounter = 0;
     PAYLOAD_IF_AppData.HkTelemetryPkt.DeviceHK.DeviceConfig  = 0;
     PAYLOAD_IF_AppData.HkTelemetryPkt.DeviceHK.DeviceStatus  = 0;
+    PAYLOAD_IF_AppData.HkTelemetryPkt.HkPeriodSec            = PAYLOAD_IF_HK_PERIOD_SEC_DEFAULT;
+    PAYLOAD_IF_AppData.HkTickCount                           = 0;
 
     /*
      ** Send an information event that the app has initialized.
@@ -402,6 +404,16 @@ void PAYLOAD_IF_ProcessGroundCommand(void)
             break;
 
         /*
+        ** Set Housekeeping Period Command
+        */
+        case PAYLOAD_IF_SET_HK_PERIOD_CC:
+            if (PAYLOAD_IF_VerifyCmdLength(PAYLOAD_IF_AppData.MsgPtr, sizeof(PAYLOAD_IF_SetHkPeriod_cmd_t)) == OS_SUCCESS)
+            {
+                PAYLOAD_IF_SetHkPeriod();
+            }
+            break;
+
+        /*
         ** TODO: Edit and add more command codes as appropriate for the application
         */
 
@@ -442,6 +454,10 @@ void PAYLOAD_IF_ProcessTelemetryRequest(void)
 
         case PAYLOAD_IF_REQ_DATA_TLM:
             PAYLOAD_IF_ReportDeviceTelemetry();
+            break;
+
+        case PAYLOAD_IF_HK_TICK:
+            PAYLOAD_IF_ProcessHkTick();
             break;
 
         /*
@@ -493,6 +509,50 @@ void PAYLOAD_IF_ReportDeviceTelemetry(void)
     */
     CFE_SB_TimeStampMsg((CFE_MSG_Message_t *)&PAYLOAD_IF_AppData.DevicePkt);
     CFE_SB_TransmitMsg((CFE_MSG_Message_t *)&PAYLOAD_IF_AppData.DevicePkt, true);
+    return;
+}
+
+/*
+** Once-per-second tick from SCH: report housekeeping every HkPeriodSec ticks
+*/
+void PAYLOAD_IF_ProcessHkTick(void)
+{
+    if (PAYLOAD_IF_AppData.HkTelemetryPkt.HkPeriodSec == 0)
+    {
+        return;
+    }
+
+    PAYLOAD_IF_AppData.HkTickCount++;
+    if (PAYLOAD_IF_AppData.HkTickCount >= PAYLOAD_IF_AppData.HkTelemetryPkt.HkPeriodSec)
+    {
+        PAYLOAD_IF_AppData.HkTickCount = 0;
+        PAYLOAD_IF_ReportHousekeeping();
+    }
+    return;
+}
+
+/*
+** Set the periodic housekeeping period; 0 disables periodic reports
+*/
+void PAYLOAD_IF_SetHkPeriod(void)
+{
+    const PAYLOAD_IF_SetHkPeriod_cmd_t *cmd = (const PAYLOAD_IF_SetHkPeriod_cmd_t *)PAYLOAD_IF_AppData.MsgPtr;
+
+    if (cmd->HkPeriodSec > PAYLOAD_IF_HK_PERIOD_SEC_MAX)
+    {
+        PAYLOAD_IF_AppData.HkTelemetryPkt.CommandErrorCount++;
+        CFE_EVS_SendEvent(PAYLOAD_IF_CMD_HK_PERIOD_ERR_EID, CFE_EVS_EventType_ERROR,
+                          "PAYLOAD_IF: Housekeeping period %u s is above the maximum of %u s",
+                          (unsigned int)cmd->HkPeriodSec, (unsigned int)PAYLOAD_IF_HK_PERIOD_SEC_MAX);
+        return;
+    }
+
+    PAYLOAD_IF_AppData.HkTelemetryPkt.HkPeriodSec = cmd->HkPeriodSec;
+    PAYLOAD_IF_AppData.HkTickCount                = 0;
+    PAYLOAD_IF_AppData.HkTelemetryPkt.CommandCount++;
+    CFE_EVS_SendEvent(PAYLOAD_IF_CMD_HK_PERIOD_INF_EID, CFE_EVS_EventType_INFORMATION,
+                      "PAYLOAD_IF: Housekeeping period set to %u s (0 = periodic housekeeping off)",
+                      (unsigned int)cmd->HkPeriodSec);
     return;
 }
 

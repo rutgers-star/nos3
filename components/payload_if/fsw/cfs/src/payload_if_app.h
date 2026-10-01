@@ -82,6 +82,7 @@ typedef struct
     CFE_ES_TaskId_t          RxTaskID;      /* Child task ID for asynchronous UART receive */
     volatile bool            RxTaskRunning; /* Set true to run RxTask loop, false to stop it */
     osal_id_t                RxTaskExitSem; /* Given by RxTask when it leaves its loop */
+    uint16                   HkTickCount;   /* SCH ticks since the last periodic HK report */
     plframe_decode_ctx_t     DecodeCtx;     /* Persistent payload-link decoder state */
 
 } PAYLOAD_IF_AppData_t;
@@ -110,6 +111,8 @@ void  PAYLOAD_IF_ResetCounters(void);
 void  PAYLOAD_IF_Enable(void);
 void  PAYLOAD_IF_Disable(void);
 void  PAYLOAD_IF_Configure(void);
+void  PAYLOAD_IF_SetHkPeriod(void);
+void  PAYLOAD_IF_ProcessHkTick(void);
 int32 PAYLOAD_IF_VerifyCmdLength(CFE_MSG_Message_t *msg, uint16 expected_length);
 void  PAYLOAD_IF_RxTask(void);
 int32 PAYLOAD_IF_StartRxTask(void);
