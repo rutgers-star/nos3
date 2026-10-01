@@ -60,6 +60,7 @@
 #include "generic_torquer_msgids.h"
 #include "mgr_msgids.h"
 #include "novatel_oem615_msgids.h"
+#include "payload_if_msgids.h"
 #include "sample_msgids.h"
 #include "syn_msgids.h"
 
@@ -216,8 +217,8 @@ SCH_MessageEntry_t SCH_DefaultMessageTable[SCH_MAX_MESSAGES] =
   { { CFE_MAKE_BIG16(NOVATEL_OEM615_REQ_HK_MID),  CFE_MAKE_BIG16(0xC000), CFE_MAKE_BIG16(0x0001), 0x0000 } },
     /* command ID #51 - GPS Data */
   { { CFE_MAKE_BIG16(NOVATEL_OEM615_REQ_HK_MID),  CFE_MAKE_BIG16(0xC000), CFE_MAKE_BIG16(0x0001), 0x0100 } },
-    /* command ID #52 */
-  { { CFE_MAKE_BIG16(SCH_UNUSED_MID) } },
+    /* command ID #52 - PAYLOAD_IF HK tick (function code 2); PAYLOAD_IF sets the HK period */
+  { { CFE_MAKE_BIG16(PAYLOAD_IF_REQ_HK_MID),  CFE_MAKE_BIG16(0xC000), CFE_MAKE_BIG16(0x0001), CFE_MAKE_BIG16(0x0200) } },
     /* command ID #53 */
   { { CFE_MAKE_BIG16(SCH_UNUSED_MID) } },
     /* command ID #54 */

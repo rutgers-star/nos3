@@ -130,6 +130,8 @@ do
     k=$(basename $j)
     targets="$targets $(basename $j)"
 done
+# Simulator control commands for the sim command bus bridge, one file per component
+cp $BASE_DIR/components/*/gsw/*_SIM_CMD.txt SIM_CMDBUS_BRIDGE/cmd_tlm/
 for i in $(find . -name *.txt)
 do 
     sed -i -e 's/<%= CosmosCfsConfig::PROCESSOR_ENDIAN %>/LITTLE_ENDIAN/; s/<%=CF_INCOMING_PDU_MID%>/0x1800/; s/<%=CF_SPACE_TO_GND_PDU_MID%>/0x0800/;' $i
@@ -152,7 +154,7 @@ fi
 
 for i in $targets
 do
-    if [ "$i" != "SIM_42_TRUTH" -a "$i" != "SYSTEM" -a "$i" != "TO_DEBUG" ]
+    if [ "$i" != "SIM_42_TRUTH" -a "$i" != "SYSTEM" -a "$i" != "TO_DEBUG" -a "$i" != "SIM_CMDBUS_BRIDGE" ]
     then
         debug=$i"_DEBUG"
         radio=$i"_RADIO"
@@ -166,7 +168,7 @@ echo "" >> plugin.txt
 echo "INTERFACE DEBUG udp_interface.rb nos-fsw 5012 5013 nil nil 128 10.0 nil" >> plugin.txt
 for i in $targets
 do
-    if [ "$i" != "SIM_42_TRUTH" -a "$i" != "SYSTEM" -a "$i" != "TO_DEBUG" ]
+    if [ "$i" != "SIM_42_TRUTH" -a "$i" != "SYSTEM" -a "$i" != "TO_DEBUG" -a "$i" != "SIM_CMDBUS_BRIDGE" ]
     then
         debug=$i"_DEBUG"
         echo "   MAP_TARGET $debug" >> plugin.txt
@@ -178,7 +180,7 @@ echo "" >> plugin.txt
 echo "INTERFACE RADIO udp_interface.rb cryptolib 6010 6011 nil nil 128 10.0 nil" >> plugin.txt
 for i in $targets
 do
-    if [ "$i" != "SIM_42_TRUTH" -a "$i" != "SYSTEM" -a "$i" != "TO_DEBUG" ]
+    if [ "$i" != "SIM_42_TRUTH" -a "$i" != "SYSTEM" -a "$i" != "TO_DEBUG" -a "$i" != "SIM_CMDBUS_BRIDGE" ]
     then
         radio=$i"_RADIO"
         echo "   MAP_TARGET $radio" >> plugin.txt
@@ -188,6 +190,11 @@ echo "" >> plugin.txt
 
 echo "INTERFACE SIM_42_TRUTH_INT udp_interface.rb truth42sim 5110 5111 nil nil 128 10.0 nil" >> plugin.txt
 echo "   MAP_TARGET SIM_42_TRUTH" >> plugin.txt
+echo "" >> plugin.txt
+
+# Simulator control: newline-terminated JSON to the NOS3 sim command bus bridge
+echo "INTERFACE SIM_CMDBUS_BRIDGE_INT tcpip_client_interface.rb nos-sim-bridge 12020 12020 10.0 nil TEMPLATE 0x0A 0x0A" >> plugin.txt
+echo "   MAP_TARGET SIM_CMDBUS_BRIDGE" >> plugin.txt
 
 # Capture date created
 echo "" >> plugin.txt
@@ -209,13 +216,15 @@ echo ""
 ## Install plugin
 echo "Install plugin..."
 cd $OPENC3_DIR/openc3-cosmos-nos3
-$OPENC3_CLI geminstall ./openc3-cosmos-nos3-1.0.$DATE.gem
+# "cli load" installs (or upgrades) the plugin, creating its targets and interfaces.
+# "geminstall" only stored the gem, so OpenC3 never had the NOS3 targets.
+$OPENC3_CLI load ./openc3-cosmos-nos3-1.0.$DATE.gem DEFAULT
 INSTALL_STATUS=$?
 
 if [ $INSTALL_STATUS -eq 0 ]; then
-    echo "Gem installation successful"
+    echo "Plugin installation successful"
 else
-    echo "Gem installation failed with exit code: $INSTALL_STATUS"
+    echo "Plugin installation failed with exit code: $INSTALL_STATUS"
     exit 1
 fi
 echo ""

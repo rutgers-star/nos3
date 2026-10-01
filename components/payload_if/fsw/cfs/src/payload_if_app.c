@@ -223,6 +223,8 @@ int32 PAYLOAD_IF_AppInit(void)
     PAYLOAD_IF_AppData.HkTelemetryPkt.DeviceHK.DeviceCounter = 0;
     PAYLOAD_IF_AppData.HkTelemetryPkt.DeviceHK.DeviceConfig  = 0;
     PAYLOAD_IF_AppData.HkTelemetryPkt.DeviceHK.DeviceStatus  = 0;
+    PAYLOAD_IF_AppData.HkTelemetryPkt.HkPeriodSec            = PAYLOAD_IF_HK_PERIOD_SEC_DEFAULT;
+    PAYLOAD_IF_AppData.HkTickCount                           = 0;
 
     /*
      ** Send an information event that the app has initialized.
@@ -399,6 +401,23 @@ void PAYLOAD_IF_ProcessGroundCommand(void)
             break;
 
         /*
+        ** Forward a PayOBC packet from the ground (length checked by ForwardToPayload)
+        */
+        case PAYLOAD_IF_FORWARD_CC:
+            PAYLOAD_IF_ForwardToPayload();
+            break;
+
+        /*
+        ** Set Housekeeping Period Command
+        */
+        case PAYLOAD_IF_SET_HK_PERIOD_CC:
+            if (PAYLOAD_IF_VerifyCmdLength(PAYLOAD_IF_AppData.MsgPtr, sizeof(PAYLOAD_IF_SetHkPeriod_cmd_t)) == OS_SUCCESS)
+            {
+                PAYLOAD_IF_SetHkPeriod();
+            }
+            break;
+
+        /*
         ** TODO: Edit and add more command codes as appropriate for the application
         */
 
@@ -439,6 +458,10 @@ void PAYLOAD_IF_ProcessTelemetryRequest(void)
 
         case PAYLOAD_IF_REQ_DATA_TLM:
             PAYLOAD_IF_ReportDeviceTelemetry();
+            break;
+
+        case PAYLOAD_IF_HK_TICK:
+            PAYLOAD_IF_ProcessHkTick();
             break;
 
         /*
@@ -490,6 +513,50 @@ void PAYLOAD_IF_ReportDeviceTelemetry(void)
     */
     CFE_SB_TimeStampMsg((CFE_MSG_Message_t *)&PAYLOAD_IF_AppData.DevicePkt);
     CFE_SB_TransmitMsg((CFE_MSG_Message_t *)&PAYLOAD_IF_AppData.DevicePkt, true);
+    return;
+}
+
+/*
+** Once-per-second tick from SCH: report housekeeping every HkPeriodSec ticks
+*/
+void PAYLOAD_IF_ProcessHkTick(void)
+{
+    if (PAYLOAD_IF_AppData.HkTelemetryPkt.HkPeriodSec == 0)
+    {
+        return;
+    }
+
+    PAYLOAD_IF_AppData.HkTickCount++;
+    if (PAYLOAD_IF_AppData.HkTickCount >= PAYLOAD_IF_AppData.HkTelemetryPkt.HkPeriodSec)
+    {
+        PAYLOAD_IF_AppData.HkTickCount = 0;
+        PAYLOAD_IF_ReportHousekeeping();
+    }
+    return;
+}
+
+/*
+** Set the periodic housekeeping period; 0 disables periodic reports
+*/
+void PAYLOAD_IF_SetHkPeriod(void)
+{
+    const PAYLOAD_IF_SetHkPeriod_cmd_t *cmd = (const PAYLOAD_IF_SetHkPeriod_cmd_t *)PAYLOAD_IF_AppData.MsgPtr;
+
+    if (cmd->HkPeriodSec > PAYLOAD_IF_HK_PERIOD_SEC_MAX)
+    {
+        PAYLOAD_IF_AppData.HkTelemetryPkt.CommandErrorCount++;
+        CFE_EVS_SendEvent(PAYLOAD_IF_CMD_HK_PERIOD_ERR_EID, CFE_EVS_EventType_ERROR,
+                          "PAYLOAD_IF: Housekeeping period %u s is above the maximum of %u s",
+                          (unsigned int)cmd->HkPeriodSec, (unsigned int)PAYLOAD_IF_HK_PERIOD_SEC_MAX);
+        return;
+    }
+
+    PAYLOAD_IF_AppData.HkTelemetryPkt.HkPeriodSec = cmd->HkPeriodSec;
+    PAYLOAD_IF_AppData.HkTickCount                = 0;
+    PAYLOAD_IF_AppData.HkTelemetryPkt.CommandCount++;
+    CFE_EVS_SendEvent(PAYLOAD_IF_CMD_HK_PERIOD_INF_EID, CFE_EVS_EventType_INFORMATION,
+                      "PAYLOAD_IF: Housekeeping period set to %u s (0 = periodic housekeeping off)",
+                      (unsigned int)cmd->HkPeriodSec);
     return;
 }
 
@@ -721,29 +788,39 @@ void PAYLOAD_IF_Configure(void)
 }
 
 /*
-** Outbound routing: encode a Software Bus message as a payload-link frame
-** and write it to UART. Serialized against the RX task via a single write
-** call per message so bytes from concurrent writes cannot interleave.
+** True when a buffer holds exactly one CCSDS packet: version 000 and a
+** packet data length field that agrees with the buffer length.
 */
-void PAYLOAD_IF_SendToPayload(void)
+static bool PAYLOAD_IF_IsCompleteCcsdsPacket(const uint8 *Packet, size_t Length)
 {
-    size_t  msg_size  = 0;
+    if (Length < 6 || (Packet[0] & 0xE0) != 0)
+    {
+        return false;
+    }
+    return ((size_t)((Packet[4] << 8) | Packet[5]) + 1 + 6) == Length;
+}
+
+/*
+** Encode one CCSDS packet as a payload-link frame and write it to the UART.
+** A single write call per frame, from the main task only, so frames from
+** different senders cannot interleave.
+*/
+void PAYLOAD_IF_SendPacketToPayload(const uint8 *Packet, size_t Length)
+{
     uint8_t frame_buf[PL_MAX_FRAME_LEN];
     size_t  frame_size;
     int32   bytes_written;
 
-    CFE_MSG_GetSize((CFE_MSG_Message_t *)PAYLOAD_IF_AppData.MsgPtr, &msg_size);
-
-    if (msg_size < PL_MIN_BODY_LEN || msg_size > PL_MAX_BODY_LEN)
+    if (Length < PL_MIN_BODY_LEN || Length > PL_MAX_BODY_LEN)
     {
         PAYLOAD_IF_AppData.HkTelemetryPkt.CommandErrorCount++;
         CFE_EVS_SendEvent(PAYLOAD_IF_CMD_ERR_EID, CFE_EVS_EventType_ERROR,
-                          "PAYLOAD_IF: Outbound message size %zu out of range [%d,%d]", msg_size,
+                          "PAYLOAD_IF: Outbound message size %zu out of range [%d,%d]", Length,
                           PL_MIN_BODY_LEN, PL_MAX_BODY_LEN);
         return;
     }
 
-    frame_size = plframe_encode((const uint8_t *)PAYLOAD_IF_AppData.MsgPtr, msg_size, frame_buf);
+    frame_size = plframe_encode(Packet, Length, frame_buf);
     if (frame_size == 0)
     {
         PAYLOAD_IF_AppData.HkTelemetryPkt.CommandErrorCount++;
@@ -766,6 +843,80 @@ void PAYLOAD_IF_SendToPayload(void)
 }
 
 /*
+** On-board route: a Software Bus message on the PayOBC command MID is itself
+** the PayOBC packet; send it unchanged.
+*/
+void PAYLOAD_IF_SendToPayload(void)
+{
+    size_t msg_size = 0;
+
+    CFE_MSG_GetSize((CFE_MSG_Message_t *)PAYLOAD_IF_AppData.MsgPtr, &msg_size);
+    PAYLOAD_IF_SendPacketToPayload((const uint8 *)PAYLOAD_IF_AppData.MsgPtr, msg_size);
+}
+
+/*
+** Ground route: PAYLOAD_IF_FORWARD_CC carries a PayOBC packet as command data.
+** Unwrap it, check it is a complete CCSDS packet on an APID allowed toward
+** the PayOBC, and send it unchanged.
+*/
+void PAYLOAD_IF_ForwardToPayload(void)
+{
+    const PAYLOAD_IF_Forward_cmd_t *cmd      = (const PAYLOAD_IF_Forward_cmd_t *)PAYLOAD_IF_AppData.MsgPtr;
+    size_t                          msg_size = 0;
+    size_t                          length;
+    uint16                          apid;
+
+    CFE_MSG_GetSize(PAYLOAD_IF_AppData.MsgPtr, &msg_size);
+    if (msg_size < sizeof(CFE_MSG_CommandHeader_t) + PL_MIN_BODY_LEN ||
+        msg_size > sizeof(CFE_MSG_CommandHeader_t) + PL_MAX_BODY_LEN)
+    {
+        PAYLOAD_IF_AppData.HkTelemetryPkt.CommandErrorCount++;
+        CFE_EVS_SendEvent(PAYLOAD_IF_LEN_ERR_EID, CFE_EVS_EventType_ERROR,
+                          "PAYLOAD_IF: Forward command length %zu holds no %d to %d byte PayOBC packet", msg_size,
+                          PL_MIN_BODY_LEN, PL_MAX_BODY_LEN);
+        return;
+    }
+
+    length = msg_size - sizeof(CFE_MSG_CommandHeader_t);
+    if (!PAYLOAD_IF_IsCompleteCcsdsPacket(cmd->Packet, length))
+    {
+        PAYLOAD_IF_AppData.HkTelemetryPkt.CommandErrorCount++;
+        CFE_EVS_SendEvent(PAYLOAD_IF_FORWARD_ERR_EID, CFE_EVS_EventType_ERROR,
+                          "PAYLOAD_IF: Forward command data is not one complete %zu byte CCSDS packet", length);
+        return;
+    }
+
+    apid = ((cmd->Packet[0] << 8) | cmd->Packet[1]) & 0x07FF;
+    if (!star_payload_apid_allowed_bus_to_pay(apid))
+    {
+        PAYLOAD_IF_AppData.HkTelemetryPkt.CommandErrorCount++;
+        CFE_EVS_SendEvent(PAYLOAD_IF_FORWARD_ERR_EID, CFE_EVS_EventType_ERROR,
+                          "PAYLOAD_IF: Forward command APID 0x%03X is not allowed toward the PayOBC", apid);
+        return;
+    }
+
+    PAYLOAD_IF_SendPacketToPayload(cmd->Packet, length);
+}
+
+/*
+** Publish a received PayOBC packet for the ground, inside a cFS telemetry
+** message stamped with the BusOBC receive time.
+*/
+static void PAYLOAD_IF_PublishPayObcTlm(const uint8 *Packet, size_t Length)
+{
+    PAYLOAD_IF_PayObc_tlm_t *tlm = &PAYLOAD_IF_AppData.PayObcTlmPkt;
+
+    CFE_MSG_Init(CFE_MSG_PTR(tlm->TlmHeader), CFE_SB_ValueToMsgId(PAYLOAD_IF_PAYOBC_TLM_MID),
+                 sizeof(tlm->TlmHeader) + Length);
+    memcpy(tlm->Packet, Packet, Length);
+    CFE_SB_TimeStampMsg(CFE_MSG_PTR(tlm->TlmHeader));
+    if (CFE_SB_TransmitMsg(CFE_MSG_PTR(tlm->TlmHeader), true) != CFE_SUCCESS)
+    {
+        PAYLOAD_IF_AppData.HkTelemetryPkt.DeviceErrorCount++;
+    }
+}
+
+/*
 ** Validates a fully decoded frame body (in PAYLOAD_IF_AppData.DecodeCtx) and,
 ** if valid, publishes it on the Software Bus. Extracted from RxTask so it
 ** can be exercised directly by unit tests without running the RX loop.
@@ -775,10 +926,9 @@ int32 PAYLOAD_IF_HandleDecodedFrame(void)
 {
     plframe_decode_ctx_t *ctx = &PAYLOAD_IF_AppData.DecodeCtx;
     uint16_t apid;
-    size_t   ccsds_len;
 
-    /* Body must be at least long enough for a 6-byte CCSDS primary header */
-    if (ctx->body_len < 6)
+    /* Version 000 and a CCSDS length that agrees with the frame body */
+    if (!PAYLOAD_IF_IsCompleteCcsdsPacket(ctx->body, ctx->body_len))
     {
         PAYLOAD_IF_AppData.HkTelemetryPkt.DeviceErrorCount++;
         return OS_ERROR;
@@ -786,21 +936,13 @@ int32 PAYLOAD_IF_HandleDecodedFrame(void)
 
     apid = ((ctx->body[0] << 8) | ctx->body[1]) & 0x07FF;
 
-    /* CCSDS length field: (total bytes after 6-byte header) - 1 */
-    ccsds_len = ((ctx->body[4] << 8) | ctx->body[5]) + 1 + 6;
-    if (ccsds_len != ctx->body_len)
-    {
-        PAYLOAD_IF_AppData.HkTelemetryPkt.DeviceErrorCount++;
-        return OS_ERROR;
-    }
-
     if (!star_payload_apid_allowed_pay_to_bus(apid))
     {
         PAYLOAD_IF_AppData.HkTelemetryPkt.CommandErrorCount++;
         return OS_ERROR;
     }
 
-    /* All checks passed: publish the unmodified CCSDS packet.
+    /* All checks passed: publish the unmodified CCSDS packet, then the ground copy.
     ** Per cfe_sb.h, BufPtr must come from CFE_SB_AllocateMessageBuffer;
     ** we cannot transmit our own decoder buffer directly. */
     {
@@ -811,6 +953,7 @@ int32 PAYLOAD_IF_HandleDecodedFrame(void)
             if (CFE_SB_TransmitBuffer(sb_buf, false) == CFE_SUCCESS)
             {
                 PAYLOAD_IF_AppData.HkTelemetryPkt.DeviceCount++;
+                PAYLOAD_IF_PublishPayObcTlm(ctx->body, ctx->body_len);
                 return OS_SUCCESS;
             }
             else

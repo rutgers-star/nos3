@@ -11,6 +11,7 @@
 
 #include "cfe.h"
 #include "payload_if_device.h"
+#include "payload_link/frame.h"
 
 /*
 ** Ground Command Codes
@@ -21,6 +22,8 @@
 #define PAYLOAD_IF_ENABLE_CC         2
 #define PAYLOAD_IF_DISABLE_CC        3
 #define PAYLOAD_IF_CONFIG_CC         4
+#define PAYLOAD_IF_SET_HK_PERIOD_CC  5
+#define PAYLOAD_IF_FORWARD_CC        6
 
 /*
 ** Telemetry Request Command Codes
@@ -28,6 +31,7 @@
 */
 #define PAYLOAD_IF_REQ_HK_TLM   0
 #define PAYLOAD_IF_REQ_DATA_TLM 1
+#define PAYLOAD_IF_HK_TICK      2 /* Sent by SCH once per second; drives periodic housekeeping */
 
 /*
 ** Generic "no arguments" command type definition
@@ -48,6 +52,27 @@ typedef struct
     uint32                  DeviceCfg;
 
 } PAYLOAD_IF_Config_cmd_t;
+
+/*
+** PAYLOAD_IF set housekeeping period command
+*/
+typedef struct
+{
+    CFE_MSG_CommandHeader_t CmdHeader;
+    uint16                  HkPeriodSec; /* Seconds between periodic HK reports; 0 disables them */
+
+} PAYLOAD_IF_SetHkPeriod_cmd_t;
+
+/*
+** PAYLOAD_IF forward command: the command data is one complete PayOBC CCSDS
+** packet, sent unchanged over the payload link. Variable length.
+*/
+typedef struct
+{
+    CFE_MSG_CommandHeader_t CmdHeader;
+    uint8                   Packet[PL_MAX_BODY_LEN];
+
+} PAYLOAD_IF_Forward_cmd_t;
 
 /*
 ** PAYLOAD_IF device telemetry definition
@@ -80,8 +105,21 @@ typedef struct
     */
     uint8                  DeviceEnabled;
     PAYLOAD_IF_Device_HK_tlm_t DeviceHK;
+    uint16                 HkPeriodSec; /* Seconds between periodic HK reports; 0 = off */
 
 } __attribute__((packed)) PAYLOAD_IF_Hk_tlm_t;
 #define PAYLOAD_IF_HK_TLM_LNGTH sizeof(PAYLOAD_IF_Hk_tlm_t)
+
+/*
+** PayOBC packet received over the payload link, wrapped for the ground. The
+** telemetry header carries the BusOBC receive time; the packet follows
+** unchanged. Variable length.
+*/
+typedef struct
+{
+    CFE_MSG_TelemetryHeader_t TlmHeader;
+    uint8                     Packet[PL_MAX_BODY_LEN];
+
+} __attribute__((packed)) PAYLOAD_IF_PayObc_tlm_t;
 
 #endif /* _PAYLOAD_IF_MSG_H_ */

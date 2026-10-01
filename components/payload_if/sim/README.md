@@ -159,6 +159,35 @@ The script also checks the simulator log for the unchanged command bytes.
 `ENABLE_UNIT_TESTS=true`. After `make build-test` into the same directory, the
 flight binary uses the Linux hardware UART driver and every UART open fails.
 
+## Through OpenC3
+
+```sh
+make config && make fsw && make sim && make gsw
+make launch            # or: make launch HEADLESS=1 COMPONENTS="payload_if radio"
+```
+
+In the OpenC3 UI (http://localhost:2900):
+
+1. **Command Sender**: send `PAYLOAD_IF_DEBUG PAYLOAD_IF_ENABLE_CC`.
+2. **Command Sender**: send `PAYLOAD_IF_DEBUG PAYOBC_CMD`. With its defaults
+   (opcode `0x20`, counter 1, argument 1) the PayOBC packet inside it is the ICD
+   RevB A1 packet.
+3. **Packet Viewer**: `PAYLOAD_IF_DEBUG PAYOBC_STATUS` shows the decoded reply:
+   sequence count, echoed opcode and counter, accepted commands, and the
+   PayOBC's error counters. `CCSDS_SECONDS`/`CCSDS_SUBSECS` hold the BusOBC time
+   at which PAYLOAD_IF received it.
+
+Payload APIDs never cross the space link. `PAYOBC_CMD` is a PAYLOAD_IF forward
+command (code 6) with the PayOBC packet as its data, and `PAYOBC_STATUS` arrives
+inside PAYLOAD_IF's wrapper message `0x0862`. On board, PAYLOAD_IF still sends and
+publishes the PayOBC packets unchanged (contract: payload ground interface).
+4. **Command Sender**, target `SIM_CMDBUS_BRIDGE`: the `PAYLOAD_IF_SIM_*`
+   commands reset the simulator and inject faults (see Simulator control).
+
+The `_DEBUG` targets use CI_LAB and TO_LAB directly. The `_RADIO` targets go
+through CryptoLib and the radio simulator, and their downlink starts only
+after `CFS_RADIO TO_ENABLE_OUTPUT`.
+
 ## Known limitations
 
 - Only APID `0x010` has behavior. Other BusOBC-to-PayOBC APIDs are validated and
@@ -167,6 +196,12 @@ flight binary uses the Linux hardware UART driver and every UART open fails.
   `0x010` is local to this simulator.
 - payload-link does not rescan bytes consumed by a rejected frame. A real sync
   word inside a dropped frame's body is therefore missed.
+- The CryptoLib standalone ground tool forwards only packets whose first byte is
+  `0x08` or `0x09`, plus idle packets and CFDP. It discards any other packet and
+  the rest of its TM frame. PayOBC packets are downlinked inside the `0x0862`
+  wrapper, so they are not affected. `make build-cryptolib` also applies
+  `scripts/gsw/patches/cryptolib/`, which makes the tool forward every valid
+  space packet.
 - The YAMCS definition `../gsw/payload_if.xtce` still carries the component
   template's message IDs (0x18FA/0x18FB, 0x08FA/0x08FB) and does not match
   PAYLOAD_IF. The mission uses OpenC3, whose definitions are in `../gsw/PAYLOAD_IF`.

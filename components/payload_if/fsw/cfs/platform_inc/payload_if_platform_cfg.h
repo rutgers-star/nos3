@@ -32,6 +32,13 @@
 #define PAYLOAD_IF_RX_TASK_MS_DELAY      10
 #define PAYLOAD_IF_RX_EXIT_SEM_NAME      "PAYLOAD_IF_RXSEM"
 #define PAYLOAD_IF_RX_TASK_STOP_MS       1000 /* Disable waits this long for the RX task to stop */
+
+/*
+** Periodic housekeeping, driven by a once-per-second tick from SCH and
+** changeable with PAYLOAD_IF_SET_HK_PERIOD_CC (0 disables it)
+*/
+#define PAYLOAD_IF_HK_PERIOD_SEC_DEFAULT 5
+#define PAYLOAD_IF_HK_PERIOD_SEC_MAX     3600
 /* Note: Debug flag disabled (commented out) by default */
 //#define PAYLOAD_IF_CFG_DEBUG
 #endif

@@ -34,6 +34,15 @@ COMMAND PAYLOAD_IF PAYLOAD_IF_CONFIG_CC <%= CosmosCfsConfig::PROCESSOR_ENDIAN %>
   APPEND_PARAMETER CCSDS_CHECKSUM      8  UINT MIN_UINT8 MAX_UINT8 0        "CCSDS Command Checksum"
   APPEND_PARAMETER DEVICE_CONFIG       32 UINT MIN_UINT32 MAX_UINT32 0      "Device Configuration"
 
+COMMAND PAYLOAD_IF PAYLOAD_IF_SET_HK_PERIOD_CC <%= CosmosCfsConfig::PROCESSOR_ENDIAN %> "Set the periodic housekeeping period"
+  APPEND_PARAMETER CCSDS_STREAMID      16 UINT MIN_UINT16 MAX_UINT16 0x1850 "CCSDS Packet Identification" BIG_ENDIAN
+  APPEND_PARAMETER CCSDS_SEQUENCE      16 UINT MIN_UINT16 MAX_UINT16 0xC000 "CCSDS Packet Sequence Control" BIG_ENDIAN
+  APPEND_PARAMETER CCSDS_LENGTH        16 UINT MIN_UINT16 MAX_UINT16 3      "CCSDS Packet Data Length" BIG_ENDIAN
+  APPEND_PARAMETER CCSDS_FC            8  UINT MIN_UINT8 MAX_UINT8 5        "CCSDS Command Function Code" 
+  APPEND_PARAMETER CCSDS_CHECKSUM      8  UINT MIN_UINT8 MAX_UINT8 0        "CCSDS Command Checksum"
+  APPEND_PARAMETER HK_PERIOD           16 UINT 0 3600 5                     "Seconds between periodic housekeeping reports (0 = off)"
+    UNITS seconds s
+
 COMMAND PAYLOAD_IF PAYLOAD_IF_REQ_HK <%= CosmosCfsConfig::PROCESSOR_ENDIAN %> "Payload_if Request HK Packet Command"
   APPEND_PARAMETER CCSDS_STREAMID      16 UINT MIN_UINT16 MAX_UINT16 0x1851 "CCSDS Packet Identification" BIG_ENDIAN
   APPEND_PARAMETER CCSDS_SEQUENCE      16 UINT MIN_UINT16 MAX_UINT16 0xC000 "CCSDS Packet Sequence Control" BIG_ENDIAN
@@ -47,3 +56,21 @@ COMMAND PAYLOAD_IF PAYLOAD_IF_REQ_DATA <%= CosmosCfsConfig::PROCESSOR_ENDIAN %> 
   APPEND_PARAMETER CCSDS_LENGTH        16 UINT MIN_UINT16 MAX_UINT16 1      "CCSDS Packet Data Length" BIG_ENDIAN
   APPEND_PARAMETER CCSDS_FC            8  UINT MIN_UINT8 MAX_UINT8 1        "CCSDS Command Function Code" 
   APPEND_PARAMETER CCSDS_CHECKSUM      8  UINT MIN_UINT8 MAX_UINT8 0        "CCSDS Command Checksum"
+
+# PayOBC command (ICD section 5.2 layout), carried to PAYLOAD_IF by its forward
+# command (code 6). PAYLOAD_IF unwraps the inner packet and sends it unchanged over
+# the payload link, so the payload APID 0x010 never appears on the space link.
+# With default values the inner packet is the ICD RevB A1 frame test vector packet.
+COMMAND PAYLOAD_IF PAYOBC_CMD BIG_ENDIAN "Send a command to the PayOBC through PAYLOAD_IF"
+  APPEND_PARAMETER CCSDS_STREAMID      16 UINT 0 65535 0x1850 "CCSDS Packet Identification"
+  APPEND_PARAMETER CCSDS_SEQUENCE      16 UINT 0 65535 0xC000 "CCSDS Packet Sequence Control"
+  APPEND_PARAMETER CCSDS_LENGTH        16 UINT 0 65535 14     "CCSDS Packet Data Length"
+  APPEND_PARAMETER CCSDS_FC             8 UINT 0 255   6      "CCSDS Command Function Code (6 = forward to PayOBC)"
+  APPEND_PARAMETER CCSDS_CHECKSUM       8 UINT 0 255   0      "CCSDS Command Checksum"
+  APPEND_PARAMETER PAYOBC_STREAMID     16 UINT 0 65535 0x1010 "PayOBC packet identification (APID 0x010 telecommand)"
+  APPEND_PARAMETER PAYOBC_SEQUENCE     16 UINT 0 65535 0xC000 "PayOBC packet sequence control"
+  APPEND_PARAMETER PAYOBC_LENGTH       16 UINT 0 65535 6      "PayOBC packet data length"
+  APPEND_PARAMETER OPCODE               8 UINT 0 255   0x20   "PayOBC opcode (0x20 = Run Experiment)"
+    FORMAT_STRING "0x%02X"
+  APPEND_PARAMETER COMMAND_COUNTER     16 UINT 0 65535 1      "Command counter; the PayOBC echoes it in its status telemetry"
+  APPEND_PARAMETER ARGUMENT            32 UINT 0 4294967295 1 "Command argument"

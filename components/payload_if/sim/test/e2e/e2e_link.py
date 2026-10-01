@@ -37,6 +37,8 @@ PAYLOAD_IF_REQ_HK_MID = 0x1851
 PAYLOAD_IF_HK_TLM_MID = 0x0860
 PAYLOAD_IF_ENABLE_CC = 2
 PAYLOAD_IF_DISABLE_CC = 3
+PAYLOAD_IF_FORWARD_CC = 6
+PAYOBC_WRAPPER_MID = 0x0862  # PAYLOAD_IF wrapper: telemetry header (BusOBC time) + PayOBC packet
 PAYOBC_TLM_MID = 0x0011  # APID 0x011, telemetry, no secondary header (ICD RevB D6)
 
 failures = []
@@ -119,15 +121,32 @@ class Link:
                 found.append(pkt)
         return found
 
+    def collect_any(self, seconds):
+        """All packets received within the window."""
+        found = []
+        deadline = time.time() + seconds
+        while time.time() < deadline:
+            self.tlm.settimeout(max(0.05, deadline - time.time()))
+            try:
+                found.append(self.tlm.recv(4096))
+            except socket.timeout:
+                break
+        return found
+
     def hk(self):
-        """PAYLOAD_IF housekeeping counters, read from the end of the packet."""
+        """Current PAYLOAD_IF housekeeping counters.
+
+        PAYLOAD_IF also reports HK periodically, so older reports can still be
+        queued in TO_LAB when the requested one is sent. Request one and use
+        the newest report received shortly afterwards. Counters are read
+        relative to the end of the packet (HK_PERIOD is the last 2 bytes)."""
         self.drain()
         for _ in range(3):
             self.uplink(cfs_command(PAYLOAD_IF_REQ_HK_MID, 0))
-            pkts = self.collect(PAYLOAD_IF_HK_TLM_MID, 3, count=1)
+            pkts = self.collect(PAYLOAD_IF_HK_TLM_MID, 2.5)
             if pkts:
-                p = pkts[0]
-                return {"cmd_err": p[-17], "cmd": p[-16], "dev_err": p[-15], "dev": p[-14], "enabled": p[-13]}
+                p = pkts[-1]
+                return {"cmd_err": p[-19], "cmd": p[-18], "dev_err": p[-17], "dev": p[-16], "enabled": p[-15]}
         return None
 
     def exchange(self, seq, counter, seconds=5, count=1):
@@ -227,6 +246,29 @@ def main():
     time.sleep(1)
     pkts = link.exchange(12, 13)
     check(pkts == [payobc_status(0x101, 1, 0x20, 13, 2)], "response after disable/enable: seq 0x101, accepted 2")
+
+    log("== 11. Ground forward command and BusOBC-timestamped wrapper (contract: payload ground interface)")
+    before = link.hk()
+    link.drain()
+    inner = payobc_command(13, 14)
+    log(f"      forward {hexs(inner)}")
+    link.uplink(cfs_command(PAYLOAD_IF_CMD_MID, PAYLOAD_IF_FORWARD_CC, inner))
+    pkts = link.collect_any(5)
+    raw = [p for p in pkts if p[:2] == bytes([0x00, 0x11])]
+    wrapped = [p for p in pkts if struct.unpack(">H", p[:2])[0] == PAYOBC_WRAPPER_MID]
+    expected = payobc_status(0x102, 1, 0x20, 14, 3)
+    check(raw == [expected], "forwarded command answered: seq 0x102, counter 14, accepted 3")
+    if check(len(wrapped) == 1, "reply also published once inside the 0x0862 wrapper"):
+        w = wrapped[0]
+        log(f"      wrapper {hexs(w[:16])} | {hexs(w[16:])}")
+        check(w[16:] == expected, "wrapper carries the PayOBC packet unchanged after a 16-byte telemetry header")
+        check(struct.unpack(">I", w[6:10])[0] > 0, f"wrapper stamped with BusOBC time ({struct.unpack('>I', w[6:10])[0]} s)")
+    link.drain()
+    link.uplink(cfs_command(PAYLOAD_IF_CMD_MID, PAYLOAD_IF_FORWARD_CC, bytes([0x00, 0x11]) + inner[2:]))
+    check(link.collect(PAYOBC_TLM_MID, 3) == [], "forward command with disallowed APID 0x011 is not sent")
+    after = link.hk()
+    check(after["cmd_err"] == before["cmd_err"] + 1,
+          f"PAYLOAD_IF CommandErrorCount +1 for the refused forward ({before['cmd_err']} -> {after['cmd_err']})")
 
 
 if __name__ == "__main__":

@@ -1146,6 +1146,246 @@ void Test_PAYLOAD_IF_RxTask_TwoFramesInOneRead(void)
     UtAssert_STUB_COUNT(CFE_ES_ExitChildTask, 1);
 }
 
+void Test_PAYLOAD_IF_ProcessHkTick(void)
+{
+    /*
+     * Test Case For:
+     * void PAYLOAD_IF_ProcessHkTick(void)
+     * Housekeeping is reported on every HkPeriodSec-th tick and never when
+     * the period is 0. The default period is set at initialization.
+     */
+    int tick;
+
+    PAYLOAD_IF_AppInit();
+    UtAssert_INT32_EQ(PAYLOAD_IF_AppData.HkTelemetryPkt.HkPeriodSec, PAYLOAD_IF_HK_PERIOD_SEC_DEFAULT);
+    UT_ResetState(UT_KEY(CFE_SB_TransmitMsg));
+
+    PAYLOAD_IF_AppData.HkTelemetryPkt.HkPeriodSec = 3;
+    PAYLOAD_IF_AppData.HkTickCount                = 0;
+    PAYLOAD_IF_ProcessHkTick();
+    PAYLOAD_IF_ProcessHkTick();
+    UtAssert_STUB_COUNT(CFE_SB_TransmitMsg, 0);
+    PAYLOAD_IF_ProcessHkTick();
+    UtAssert_STUB_COUNT(CFE_SB_TransmitMsg, 1);
+    for (tick = 0; tick < 3; tick++)
+    {
+        PAYLOAD_IF_ProcessHkTick();
+    }
+    UtAssert_STUB_COUNT(CFE_SB_TransmitMsg, 2);
+
+    PAYLOAD_IF_AppData.HkTelemetryPkt.HkPeriodSec = 0;
+    for (tick = 0; tick < 10; tick++)
+    {
+        PAYLOAD_IF_ProcessHkTick();
+    }
+    UtAssert_STUB_COUNT(CFE_SB_TransmitMsg, 2);
+}
+
+void Test_PAYLOAD_IF_HkTickRequestDispatch(void)
+{
+    /*
+     * Test Case For:
+     * void PAYLOAD_IF_ProcessTelemetryRequest(void)
+     * The SCH tick (request code PAYLOAD_IF_HK_TICK) drives periodic housekeeping.
+     */
+    CFE_SB_MsgId_t    TestMsgId = CFE_SB_ValueToMsgId(PAYLOAD_IF_REQ_HK_MID);
+    CFE_MSG_FcnCode_t FcnCode   = PAYLOAD_IF_HK_TICK;
+
+    PAYLOAD_IF_AppData.HkTelemetryPkt.HkPeriodSec = 1;
+    PAYLOAD_IF_AppData.HkTickCount                = 0;
+    PAYLOAD_IF_AppData.HkTelemetryPkt.CommandCount = 0;
+    UT_SetDataBuffer(UT_KEY(CFE_MSG_GetMsgId), &TestMsgId, sizeof(TestMsgId), false);
+    UT_SetDataBuffer(UT_KEY(CFE_MSG_GetFcnCode), &FcnCode, sizeof(FcnCode), false);
+    PAYLOAD_IF_ProcessTelemetryRequest();
+    UtAssert_STUB_COUNT(CFE_SB_TransmitMsg, 1);
+    UtAssert_INT32_EQ(PAYLOAD_IF_AppData.HkTelemetryPkt.CommandCount, 0);
+}
+
+void Test_PAYLOAD_IF_SetHkPeriod(void)
+{
+    /*
+     * Test Case For:
+     * void PAYLOAD_IF_SetHkPeriod(void)
+     * A period up to the maximum is applied and restarts the tick count; a
+     * larger one is rejected and leaves the period unchanged. The command is
+     * dispatched through ProcessGroundCommand with its length checked.
+     */
+    PAYLOAD_IF_SetHkPeriod_cmd_t Cmd;
+    CFE_SB_MsgId_t               TestMsgId = CFE_SB_ValueToMsgId(PAYLOAD_IF_CMD_MID);
+    CFE_MSG_FcnCode_t            FcnCode   = PAYLOAD_IF_SET_HK_PERIOD_CC;
+    size_t                       MsgSize   = sizeof(Cmd);
+    UT_CheckEvent_t              EventInf;
+    UT_CheckEvent_t              EventErr;
+
+    memset(&Cmd, 0, sizeof(Cmd));
+    PAYLOAD_IF_AppData.MsgPtr                         = (CFE_MSG_Message_t *)&Cmd;
+    PAYLOAD_IF_AppData.HkTelemetryPkt.HkPeriodSec     = 5;
+    PAYLOAD_IF_AppData.HkTickCount                    = 4;
+    PAYLOAD_IF_AppData.HkTelemetryPkt.CommandCount    = 0;
+    PAYLOAD_IF_AppData.HkTelemetryPkt.CommandErrorCount = 0;
+
+    UT_CheckEvent_Setup(&EventInf, PAYLOAD_IF_CMD_HK_PERIOD_INF_EID, NULL);
+    Cmd.HkPeriodSec = 10;
+    UT_SetDataBuffer(UT_KEY(CFE_MSG_GetMsgId), &TestMsgId, sizeof(TestMsgId), false);
+    UT_SetDataBuffer(UT_KEY(CFE_MSG_GetFcnCode), &FcnCode, sizeof(FcnCode), false);
+    UT_SetDataBuffer(UT_KEY(CFE_MSG_GetSize), &MsgSize, sizeof(MsgSize), false);
+    PAYLOAD_IF_ProcessGroundCommand();
+    UtAssert_INT32_EQ(PAYLOAD_IF_AppData.HkTelemetryPkt.HkPeriodSec, 10);
+    UtAssert_INT32_EQ(PAYLOAD_IF_AppData.HkTickCount, 0);
+    UtAssert_INT32_EQ(PAYLOAD_IF_AppData.HkTelemetryPkt.CommandCount, 1);
+    UtAssert_True(EventInf.MatchCount == 1, "HK period set event (%u)", (unsigned int)EventInf.MatchCount);
+
+    UT_CheckEvent_Setup(&EventErr, PAYLOAD_IF_CMD_HK_PERIOD_ERR_EID, NULL);
+    Cmd.HkPeriodSec = PAYLOAD_IF_HK_PERIOD_SEC_MAX + 1;
+    PAYLOAD_IF_SetHkPeriod();
+    UtAssert_INT32_EQ(PAYLOAD_IF_AppData.HkTelemetryPkt.HkPeriodSec, 10);
+    UtAssert_INT32_EQ(PAYLOAD_IF_AppData.HkTelemetryPkt.CommandErrorCount, 1);
+    UtAssert_True(EventErr.MatchCount == 1, "HK period rejected event (%u)", (unsigned int)EventErr.MatchCount);
+
+    Cmd.HkPeriodSec = 0;
+    PAYLOAD_IF_SetHkPeriod();
+    UtAssert_INT32_EQ(PAYLOAD_IF_AppData.HkTelemetryPkt.HkPeriodSec, 0);
+}
+
+/* ICD RevB A1 command packet and its literal payload-link frame */
+static const uint8_t RevB_Packet[13] = {0x10, 0x10, 0xC0, 0x00, 0x00, 0x06, 0x20, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01};
+static const uint8_t RevB_Frame[21]  = {0x1A, 0xCF, 0xFC, 0x1D, 0x00, 0x0D, 0x10, 0x10, 0xC0, 0x00, 0x00,
+                                       0x06, 0x20, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x9B, 0xBA};
+
+/* Builds a forward command holding Length bytes of Packet and points MsgPtr at it */
+static PAYLOAD_IF_Forward_cmd_t Forward_Cmd;
+static size_t                   Forward_Size;
+static void Forward_Setup(const uint8_t *Packet, size_t Length)
+{
+    memset(&Forward_Cmd, 0, sizeof(Forward_Cmd));
+    memcpy(Forward_Cmd.Packet, Packet, Length);
+    Forward_Size              = sizeof(CFE_MSG_CommandHeader_t) + Length;
+    PAYLOAD_IF_AppData.MsgPtr = (CFE_MSG_Message_t *)&Forward_Cmd;
+    UT_SetDataBuffer(UT_KEY(CFE_MSG_GetSize), &Forward_Size, sizeof(Forward_Size), false);
+}
+
+void Test_PAYLOAD_IF_ForwardToPayload_RevBPacket(void)
+{
+    /*
+     * Test Case For:
+     * void PAYLOAD_IF_ForwardToPayload(void)
+     * A ground forward command carrying the ICD RevB A1 packet leaves the UART
+     * as the literal frame, through the normal ground-command dispatch.
+     */
+    CFE_SB_MsgId_t    TestMsgId = CFE_SB_ValueToMsgId(PAYLOAD_IF_CMD_MID);
+    CFE_MSG_FcnCode_t FcnCode   = PAYLOAD_IF_FORWARD_CC;
+
+    Forward_Setup(RevB_Packet, sizeof(RevB_Packet));
+    Captured_UartWriteLen                          = 0;
+    PAYLOAD_IF_AppData.HkTelemetryPkt.CommandCount = 0;
+    UT_SetDataBuffer(UT_KEY(CFE_MSG_GetMsgId), &TestMsgId, sizeof(TestMsgId), false);
+    UT_SetDataBuffer(UT_KEY(CFE_MSG_GetFcnCode), &FcnCode, sizeof(FcnCode), false);
+    UT_SetHandlerFunction(UT_KEY(uart_write_port), UartWriteCapture_Hook, NULL);
+    UT_SetDeferredRetcode(UT_KEY(uart_write_port), 1, (int32_t)sizeof(RevB_Frame));
+
+    PAYLOAD_IF_ProcessGroundCommand();
+
+    UtAssert_INT32_EQ((int32)Captured_UartWriteLen, (int32)sizeof(RevB_Frame));
+    UtAssert_True(memcmp(Captured_UartWriteData, RevB_Frame, sizeof(RevB_Frame)) == 0,
+                  "forwarded packet leaves the UART as the ICD RevB literal frame");
+    UtAssert_INT32_EQ(PAYLOAD_IF_AppData.HkTelemetryPkt.CommandCount, 1);
+}
+
+void Test_PAYLOAD_IF_ForwardToPayload_Rejects(void)
+{
+    /*
+     * Test Case For:
+     * void PAYLOAD_IF_ForwardToPayload(void)
+     * Command data that is not one complete CCSDS packet on an APID allowed
+     * toward the PayOBC is rejected and counted; nothing reaches the UART.
+     */
+    uint8_t         packet[PL_MAX_BODY_LEN + 1];
+    UT_CheckEvent_t EventFwd;
+    UT_CheckEvent_t EventLen;
+
+    PAYLOAD_IF_AppData.HkTelemetryPkt.CommandErrorCount = 0;
+    /* One event hook at a time: forward-content rejections first, then length rejections */
+    UT_CheckEvent_Setup(&EventFwd, PAYLOAD_IF_FORWARD_ERR_EID, NULL);
+
+    memcpy(packet, RevB_Packet, sizeof(RevB_Packet));
+    packet[0] |= 0x20; /* version 1 */
+    Forward_Setup(packet, sizeof(RevB_Packet));
+    PAYLOAD_IF_ForwardToPayload();
+
+    memcpy(packet, RevB_Packet, sizeof(RevB_Packet));
+    packet[5] = 0x07; /* CCSDS length claims one byte more than supplied */
+    Forward_Setup(packet, sizeof(RevB_Packet));
+    PAYLOAD_IF_ForwardToPayload();
+
+    memcpy(packet, RevB_Packet, sizeof(RevB_Packet));
+    packet[0] = 0x00;
+    packet[1] = 0x11; /* APID 0x011 is PayOBC -> BusOBC only */
+    Forward_Setup(packet, sizeof(RevB_Packet));
+    PAYLOAD_IF_ForwardToPayload();
+    UtAssert_True(EventFwd.MatchCount == 3, "forward rejection events (%u)", (unsigned int)EventFwd.MatchCount);
+
+    UT_CheckEvent_Setup(&EventLen, PAYLOAD_IF_LEN_ERR_EID, NULL);
+
+    Forward_Setup(RevB_Packet, PL_MIN_BODY_LEN - 1); /* too short for a PayOBC packet */
+    PAYLOAD_IF_ForwardToPayload();
+    memset(packet, 0, sizeof(packet));
+    Forward_Setup(packet, PL_MAX_BODY_LEN + 1); /* too long */
+    PAYLOAD_IF_ForwardToPayload();
+    UtAssert_True(EventLen.MatchCount == 2, "forward length events (%u)", (unsigned int)EventLen.MatchCount);
+
+    UtAssert_INT32_EQ(PAYLOAD_IF_AppData.HkTelemetryPkt.CommandErrorCount, 5);
+    UtAssert_STUB_COUNT(uart_write_port, 0);
+}
+
+/* Captures the message ID and size given to CFE_MSG_Init */
+static CFE_SB_MsgId_t MsgInit_MsgId;
+static CFE_MSG_Size_t MsgInit_Size;
+static int32 MsgInit_Hook(void *UserObj, int32 StubRetcode, uint32 CallCount, const UT_StubContext_t *Context)
+{
+    MsgInit_MsgId = UT_Hook_GetArgValueByName(Context, "MsgId", CFE_SB_MsgId_t);
+    MsgInit_Size  = UT_Hook_GetArgValueByName(Context, "Size", CFE_MSG_Size_t);
+    return StubRetcode;
+}
+
+void Test_PAYLOAD_IF_HandleDecodedFrame_PublishesGroundWrapper(void)
+{
+    /*
+     * Test Case For:
+     * int32 PAYLOAD_IF_HandleDecodedFrame(void)
+     * An accepted PayOBC packet is published unchanged and also inside the
+     * ground wrapper: MID PAYLOAD_IF_PAYOBC_TLM_MID, telemetry header plus the
+     * packet, stamped with BusOBC time. A rejected packet publishes neither.
+     */
+    const uint8_t status[20] = {0x00, 0x11, 0xC0, 0x00, 0x00, 0x0D, 0x01, 0x20, 0x00, 0x01, 0x00, 0x01};
+    /* The published copy is written into this buffer, so it must hold a whole packet */
+    static union
+    {
+        CFE_SB_Buffer_t Buf;
+        uint8_t         Bytes[PL_MAX_BODY_LEN];
+    } StubBuf;
+    CFE_SB_Buffer_t *StubBufPtr = &StubBuf.Buf;
+
+    memset(&PAYLOAD_IF_AppData.DecodeCtx, 0, sizeof(PAYLOAD_IF_AppData.DecodeCtx));
+    memcpy(PAYLOAD_IF_AppData.DecodeCtx.body, status, sizeof(status));
+    PAYLOAD_IF_AppData.DecodeCtx.body_len = sizeof(status);
+    UT_SetDataBuffer(UT_KEY(CFE_SB_AllocateMessageBuffer), &StubBufPtr, sizeof(StubBufPtr), false);
+    UT_SetHookFunction(UT_KEY(CFE_MSG_Init), MsgInit_Hook, NULL);
+
+    UtAssert_INT32_EQ(PAYLOAD_IF_HandleDecodedFrame(), OS_SUCCESS);
+    UtAssert_STUB_COUNT(CFE_SB_TransmitBuffer, 1);
+    UtAssert_STUB_COUNT(CFE_SB_TransmitMsg, 1);
+    UtAssert_STUB_COUNT(CFE_SB_TimeStampMsg, 1);
+    UtAssert_INT32_EQ(CFE_SB_MsgIdToValue(MsgInit_MsgId), PAYLOAD_IF_PAYOBC_TLM_MID);
+    UtAssert_INT32_EQ((int32)MsgInit_Size, (int32)(sizeof(CFE_MSG_TelemetryHeader_t) + sizeof(status)));
+    UtAssert_True(memcmp(PAYLOAD_IF_AppData.PayObcTlmPkt.Packet, status, sizeof(status)) == 0,
+                  "wrapper carries the PayOBC packet unchanged");
+
+    PAYLOAD_IF_AppData.DecodeCtx.body[1] = 0x10; /* APID 0x010 is BusOBC -> PayOBC only */
+    UtAssert_INT32_EQ(PAYLOAD_IF_HandleDecodedFrame(), OS_ERROR);
+    UtAssert_STUB_COUNT(CFE_SB_TransmitBuffer, 1);
+    UtAssert_STUB_COUNT(CFE_SB_TransmitMsg, 1);
+}
+
 void Test_PAYLOAD_IF_ResetCounters_ClearsAll(void)
 {
     /*
@@ -1233,4 +1473,10 @@ void UtTest_Setup(void)
     ADD_TEST(PAYLOAD_IF_Disable_StopsRxTask);
     ADD_TEST(PAYLOAD_IF_DisableThenEnable_RestartsRxTask);
     ADD_TEST(PAYLOAD_IF_RxTask_TwoFramesInOneRead);
+    ADD_TEST(PAYLOAD_IF_ProcessHkTick);
+    ADD_TEST(PAYLOAD_IF_HkTickRequestDispatch);
+    ADD_TEST(PAYLOAD_IF_SetHkPeriod);
+    ADD_TEST(PAYLOAD_IF_ForwardToPayload_RevBPacket);
+    ADD_TEST(PAYLOAD_IF_ForwardToPayload_Rejects);
+    ADD_TEST(PAYLOAD_IF_HandleDecodedFrame_PublishesGroundWrapper);
 }

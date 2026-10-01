@@ -26,4 +26,13 @@
 #define PAYLOAD_IF_HK_TLM_MID     0x0860
 #define PAYLOAD_IF_DEVICE_TLM_MID 0x0861
 
+/*
+** PayOBC packets to and from the ground. Payload APIDs stay on the
+** BusOBC-PayOBC link; across the space link they travel inside PAYLOAD_IF
+** messages (contract: payload ground interface):
+**   uplink:   PAYLOAD_IF_CMD_MID / PAYLOAD_IF_FORWARD_CC, PayOBC packet as data
+**   downlink: PAYLOAD_IF_PAYOBC_TLM_MID, BusOBC receive time + PayOBC packet
+*/
+#define PAYLOAD_IF_PAYOBC_TLM_MID 0x0862
+
 #endif /* _PAYLOAD_IF_MSGIDS_H_ */

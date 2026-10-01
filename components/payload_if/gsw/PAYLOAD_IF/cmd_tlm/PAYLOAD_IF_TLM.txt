@@ -16,6 +16,8 @@ TELEMETRY PAYLOAD_IF PAYLOAD_IF_HK_TLM <%= CosmosCfsConfig::PROCESSOR_ENDIAN %> 
   APPEND_ITEM    DEVICE_COUNTER       32 UINT         "Reported Device Command Counter"
   APPEND_ITEM    DEVICE_CONFIG        32 UINT         "Reported Device Configuration"
   APPEND_ITEM    DEVICE_STATUS        32 UINT         "Reported Device Status"
+  APPEND_ITEM    HK_PERIOD            16 UINT         "Seconds between periodic housekeeping reports (0 = off)"
+    UNITS seconds s
 
 TELEMETRY PAYLOAD_IF PAYLOAD_IF_DATA_TLM <%= CosmosCfsConfig::PROCESSOR_ENDIAN %> "PAYLOAD_IF_Device_tlm_t"
   APPEND_ID_ITEM CCSDS_STREAMID       16 UINT 0x0861  "CCSDS Packet Identification" BIG_ENDIAN
@@ -55,3 +57,30 @@ TELEMETRY PAYLOAD_IF PAYLOAD_IF_DATA_TLM <%= CosmosCfsConfig::PROCESSOR_ENDIAN %
       STATE NO_SCIENCE_LOW_POWER    8
       STATE NO_SCIENCE_RECHARGED    9
       STATE EXITED_SCIENCE_MODE     10
+
+# PayOBC status telemetry (APID 0x011, telemetry, no secondary header) as it
+# reaches the ground: inside PAYLOAD_IF's wrapper (0x0862), whose telemetry header
+# carries the BusOBC receive time. The inner packet is unchanged; layout in
+# sim/README.md.
+TELEMETRY PAYLOAD_IF PAYOBC_STATUS BIG_ENDIAN "PayOBC status reported over the payload link"
+  APPEND_ID_ITEM CCSDS_STREAMID       16 UINT 0x0862  "CCSDS Packet Identification (PAYLOAD_IF PayOBC wrapper)"
+  APPEND_ITEM    CCSDS_SEQUENCE       16 UINT         "CCSDS Packet Sequence Control"
+  APPEND_ITEM    CCSDS_LENGTH         16 UINT         "CCSDS Packet Data Length"
+  APPEND_ITEM    CCSDS_SECONDS        32 UINT         "BusOBC receive time (seconds)"
+  APPEND_ITEM    CCSDS_SUBSECS        16 UINT         "BusOBC receive time (subseconds)"
+  APPEND_ITEM    CCSDS_SPARE          32 UINT         ""
+  APPEND_ID_ITEM PAYOBC_STREAMID      16 UINT 0x0011  "PayOBC packet identification (APID 0x011 telemetry)"
+  APPEND_ITEM    PAYOBC_SEQ_FLAGS      2 UINT         "PayOBC packet sequence flags"
+  APPEND_ITEM    SEQUENCE_COUNT       14 UINT         "PayOBC telemetry sequence count"
+  APPEND_ITEM    PAYOBC_LENGTH        16 UINT         "PayOBC packet data length"
+  APPEND_ITEM    REPORT_TYPE           8 UINT         "Why this report was sent"
+    STATE COMMAND_RESPONSE 1
+    STATE REQUESTED        2
+  APPEND_ITEM    OPCODE                8 UINT         "Opcode of the command being answered"
+    FORMAT_STRING "0x%02X"
+  APPEND_ITEM    COMMAND_COUNTER      16 UINT         "Counter of the command being answered"
+  APPEND_ITEM    COMMANDS_ACCEPTED    16 UINT         "Commands the PayOBC accepted since reset"
+  APPEND_ITEM    FRAMES_BAD_CRC       16 UINT         "Frames from the BusOBC dropped for bad CRC"
+  APPEND_ITEM    FRAMES_RESYNC        16 UINT         "Frames from the BusOBC dropped for invalid length"
+  APPEND_ITEM    PACKETS_MALFORMED    16 UINT         "Packets from the BusOBC dropped as malformed CCSDS"
+  APPEND_ITEM    PACKETS_DISALLOWED   16 UINT         "Packets from the BusOBC dropped by the APID allowlist"
