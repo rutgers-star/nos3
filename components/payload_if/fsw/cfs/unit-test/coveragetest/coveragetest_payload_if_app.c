@@ -618,20 +618,16 @@ void Test_PAYLOAD_IF_ReportDeviceTelemetry(void)
 
 void Test_PAYLOAD_IF_Configure(void)
 {
+    PAYLOAD_IF_Config_cmd_t command = {0};
+    uint8 error_count_before = PAYLOAD_IF_AppData.HkTelemetryPkt.CommandErrorCount;
+
+    PAYLOAD_IF_AppData.MsgPtr = (CFE_MSG_Message_t *)&command;
+    command.DeviceCfg         = 42;
     PAYLOAD_IF_Configure();
 
-    PAYLOAD_IF_Config_cmd_t command;
-    PAYLOAD_IF_AppData.MsgPtr                                     = (CFE_MSG_Message_t *)&command;
-    ((PAYLOAD_IF_Config_cmd_t *)PAYLOAD_IF_AppData.MsgPtr)->DeviceCfg = 0xFFFFFFFF;
-    PAYLOAD_IF_Configure();
-
-    ((PAYLOAD_IF_Config_cmd_t *)PAYLOAD_IF_AppData.MsgPtr)->DeviceCfg = 0x0;
-    PAYLOAD_IF_AppData.HkTelemetryPkt.DeviceEnabled               = PAYLOAD_IF_DEVICE_ENABLED;
-    PAYLOAD_IF_Configure();
-
-    UT_SetDeferredRetcode(UT_KEY(PAYLOAD_IF_CommandDevice), 1, OS_ERROR);
-    PAYLOAD_IF_AppData.HkTelemetryPkt.DeviceEnabled = PAYLOAD_IF_DEVICE_ENABLED;
-    PAYLOAD_IF_Configure();
+    UtAssert_INT32_EQ(PAYLOAD_IF_AppData.HkTelemetryPkt.CommandErrorCount,
+                      (uint8)(error_count_before + 1));
+    UtAssert_STUB_COUNT(PAYLOAD_IF_CommandDevice, 0);
 }
 
 void Test_PAYLOAD_IF_Enable(void)

@@ -149,8 +149,8 @@ int32 PAYLOAD_IF_AppInit(void)
     }
 
     /*
-    ** Subscribe to MGR HK for Science Pass Information
-    ** TODO: This is specific to the payload_if application, remove if using template generator
+    ** Subscribe to mission-manager HK so the retained NOS3 device telemetry
+    ** can identify the active science pass.
     */
     status = CFE_SB_Subscribe(CFE_SB_ValueToMsgId(MGR_HK_TLM_MID), PAYLOAD_IF_AppData.CmdPipe);
     if (status != CFE_SUCCESS)
@@ -189,10 +189,6 @@ int32 PAYLOAD_IF_AppInit(void)
     }
 
     /*
-    ** TODO: Subscribe to any other messages here
-    */
-
-    /*
     ** Initialize the published HK message - this HK message will contain the
     ** telemetry that has been defined in the PAYLOAD_IF_HkTelemetryPkt for this app.
     */
@@ -205,10 +201,6 @@ int32 PAYLOAD_IF_AppInit(void)
     */
     CFE_MSG_Init(CFE_MSG_PTR(PAYLOAD_IF_AppData.DevicePkt.TlmHeader), CFE_SB_ValueToMsgId(PAYLOAD_IF_DEVICE_TLM_MID),
                  PAYLOAD_IF_DEVICE_TLM_LNGTH);
-
-    /*
-    ** TODO: Initialize any other messages that this app will publish
-    */
 
     /*
     ** Always reset all counters during application initialization
@@ -264,8 +256,7 @@ void PAYLOAD_IF_ProcessCommandPacket(void)
             break;
 
         /*
-        ** Update science pass information
-        ** TODO: This is specific to the payload_if application, remove if using template generator
+        ** Update science-pass fields in the retained NOS3 device telemetry.
         */
         case MGR_HK_TLM_MID:
             PAYLOAD_IF_ProcessMgrHk();
@@ -277,10 +268,6 @@ void PAYLOAD_IF_ProcessCommandPacket(void)
         case PAYLOAD_IF_PAYOBC_CMD_MID:
             PAYLOAD_IF_SendToPayload();
             break;
-
-        /*
-        ** TODO: Add additional message IDs as needed
-        */
 
         /*
         ** All other invalid messages that this app doesn't recognize,
@@ -300,7 +287,6 @@ void PAYLOAD_IF_ProcessCommandPacket(void)
 
 /*
 ** Process ground commands
-** TODO: Add additional commands required by the specific component
 */
 void PAYLOAD_IF_ProcessGroundCommand(void)
 {
@@ -418,10 +404,6 @@ void PAYLOAD_IF_ProcessGroundCommand(void)
             break;
 
         /*
-        ** TODO: Edit and add more command codes as appropriate for the application
-        */
-
-        /*
         ** Invalid Command Codes
         */
         default:
@@ -463,10 +445,6 @@ void PAYLOAD_IF_ProcessTelemetryRequest(void)
         case PAYLOAD_IF_HK_TICK:
             PAYLOAD_IF_ProcessHkTick();
             break;
-
-        /*
-        ** TODO: Edit, add, or remove telemetry request codes appropriate for the application
-        */
 
         /*
         ** Invalid Command Codes
@@ -561,8 +539,7 @@ void PAYLOAD_IF_SetHkPeriod(void)
 }
 
 /*
-** Ingest science MGR data and save it
-** TODO: This is specific to the payload_if application, remove if using template generator
+** Ingest mission-manager science-pass data for compatibility telemetry.
 */
 void PAYLOAD_IF_ProcessMgrHk(void)
 {
@@ -597,8 +574,7 @@ void PAYLOAD_IF_ResetCounters(void)
 }
 
 /*
-** Enable Component
-** TODO: Edit for your specific component implementation
+** Enable the payload UART and asynchronous receive task.
 */
 void PAYLOAD_IF_Enable(void)
 {
@@ -611,9 +587,7 @@ void PAYLOAD_IF_Enable(void)
         PAYLOAD_IF_AppData.HkTelemetryPkt.CommandCount++;
 
         /*
-        ** Do the action, initialize hardware interface and set enabled
-        ** TODO: Make specific to your application depending on protocol in use
-        ** Note that other components provide examples for the different protocols
+        ** Initialize the payload UART and set it enabled.
         */
         PAYLOAD_IF_AppData.Payload_ifUart.deviceString  = PAYLOAD_IF_CFG_STRING;
         PAYLOAD_IF_AppData.Payload_ifUart.handle        = PAYLOAD_IF_CFG_HANDLE;
@@ -662,8 +636,7 @@ void PAYLOAD_IF_Enable(void)
 }
 
 /*
-** Disable Component
-** TODO: Edit for your specific component implementation
+** Stop reception and disable the payload UART.
 */
 void PAYLOAD_IF_Disable(void)
 {
@@ -719,71 +692,17 @@ void PAYLOAD_IF_Disable(void)
 }
 
 /*
-** Configure Component
-** TODO: Edit for your specific component implementation
+** Reject the reserved legacy configuration command. No configuration packet
+** is assigned in the payload APID registry.
 */
 void PAYLOAD_IF_Configure(void)
 {
-    int32                status        = OS_SUCCESS;
-    int32                device_status = OS_SUCCESS;
-    PAYLOAD_IF_Config_cmd_t *config_cmd    = (PAYLOAD_IF_Config_cmd_t *)PAYLOAD_IF_AppData.MsgPtr;
+    const PAYLOAD_IF_Config_cmd_t *config_cmd = (const PAYLOAD_IF_Config_cmd_t *)PAYLOAD_IF_AppData.MsgPtr;
 
-    /* Do any necessary checks, confirm that device is currently enabled */
-    if (PAYLOAD_IF_AppData.HkTelemetryPkt.DeviceEnabled != PAYLOAD_IF_DEVICE_ENABLED)
-    {
-        status = OS_ERROR;
-        /* Increment command error count */
-        PAYLOAD_IF_AppData.HkTelemetryPkt.CommandErrorCount++;
-
-        /* Send event logging failure of check to the console */
-        CFE_EVS_SendEvent(PAYLOAD_IF_CMD_CONFIG_EN_ERR_EID, CFE_EVS_EventType_ERROR,
-                          "PAYLOAD_IF: Configuration command invalid when device disabled");
-    }
-
-    /* Do any necessary checks, confirm valid configuration value */
-    if (config_cmd->DeviceCfg == 0xFFFFFFFF) // 4294967295
-    {
-        status = OS_ERROR;
-        /* Increment command error count */
-        PAYLOAD_IF_AppData.HkTelemetryPkt.CommandErrorCount++;
-
-        /* Send event logging failure of check to the console */
-        CFE_EVS_SendEvent(PAYLOAD_IF_CMD_CONFIG_VAL_ERR_EID, CFE_EVS_EventType_ERROR,
-                          "PAYLOAD_IF: Configuration command with value %u is invalid", config_cmd->DeviceCfg);
-    }
-
-    if (status == OS_SUCCESS)
-    {
-        /* Increment command success counter */
-        PAYLOAD_IF_AppData.HkTelemetryPkt.CommandCount++;
-
-        /*
-        ** TODO: The legacy 0xDEAD/0xBEEF config command is removed. There is
-        ** no defined payload-link/CCSDS packet format for configuration yet
-        ** (see payload-apids registry -- no CONFIG APID exists). Once the
-        ** team defines one, encode it here via PAYLOAD_IF_SendToPayload's
-        ** pattern instead of a direct device call.
-        */
-        device_status = OS_SUCCESS;
-        if (device_status == OS_SUCCESS)
-        {
-            /* Increment device success counter */
-            PAYLOAD_IF_AppData.HkTelemetryPkt.DeviceCount++;
-
-            /* Send device event success to the console */
-            CFE_EVS_SendEvent(PAYLOAD_IF_CMD_CONFIG_INF_EID, CFE_EVS_EventType_INFORMATION,
-                              "PAYLOAD_IF: Configuration command received: %u", config_cmd->DeviceCfg);
-        }
-        else
-        {
-            /* Increment device error counter */
-            PAYLOAD_IF_AppData.HkTelemetryPkt.DeviceErrorCount++;
-
-            /* Send device event failure to the console */
-            CFE_EVS_SendEvent(PAYLOAD_IF_CMD_CONFIG_DEV_ERR_EID, CFE_EVS_EventType_ERROR,
-                              "PAYLOAD_IF: Configuration command received: %u", config_cmd->DeviceCfg);
-        }
-    }
+    PAYLOAD_IF_AppData.HkTelemetryPkt.CommandErrorCount++;
+    CFE_EVS_SendEvent(PAYLOAD_IF_CMD_CONFIG_VAL_ERR_EID, CFE_EVS_EventType_ERROR,
+                      "PAYLOAD_IF: Configuration value %u rejected; payload configuration APID is undefined",
+                      config_cmd->DeviceCfg);
     return;
 }
 

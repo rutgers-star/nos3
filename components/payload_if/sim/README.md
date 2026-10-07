@@ -202,6 +202,6 @@ after `CFS_RADIO TO_ENABLE_OUTPUT`.
   wrapper, so they are not affected. `make build-cryptolib` also applies
   `scripts/gsw/patches/cryptolib/`, which makes the tool forward every valid
   space packet.
-- The YAMCS definition `../gsw/payload_if.xtce` still carries the component
-  template's message IDs (0x18FA/0x18FB, 0x08FA/0x08FB) and does not match
-  PAYLOAD_IF. The mission uses OpenC3, whose definitions are in `../gsw/PAYLOAD_IF`.
+- The mission ground definition is OpenC3 under `../gsw/PAYLOAD_IF`. The YAMCS
+  XTCE file is retained only for NOS3 compatibility and is not the SPICEsat
+  command-and-telemetry authority.

@@ -29,7 +29,7 @@
 */
 #define THERMAL_TEMP_LOW_THRESHOLD   20.0  /* Turn heater ON below this (°C) */
 #define THERMAL_TEMP_HIGH_THRESHOLD  25.0  /* Turn heater OFF above this (°C) */
-#define THERMAL_HEATER_EPS_SWITCH    1     /* EPS switch number controlling heater */
+#define THERMAL_HEATER_EPS_SWITCH    7     /* Dedicated 12 V heater output in the NOS3 EPS model */
 
 /*
 ** Thermal control states
@@ -110,6 +110,7 @@ int32 THERMAL_AppInit(void);
 void THERMAL_ProcessCommandPacket(void);
 void THERMAL_ProcessGroundCommand(void);
 void THERMAL_ProcessTelemetry(CFE_SB_Buffer_t *BufPtr);
+double THERMAL_Tmp100RawToCelsius(uint16_t raw_temperature);
 void THERMAL_ReportHousekeeping(void);
 void THERMAL_ResetCounters(void);
 bool THERMAL_VerifyCmdLength(CFE_MSG_Message_t *MsgPtr, uint16 expected_length);

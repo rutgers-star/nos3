@@ -23,7 +23,7 @@
 #include "payload_link/frame.h"
 #include "star/payload_apids.h"
 
-/* TODO: This is specific to the payload_if application, remove if using template generator */
+/* Mission-manager fields retained in the NOS3 compatibility telemetry. */
 #include "mgr_msg.h"
 #include "mgr_msgids.h"
 
@@ -68,17 +68,11 @@ typedef struct
     CFE_SB_PipeId_t    CmdPipe;   /* Pipe Id for HK command pipe */
     uint32             RunStatus; /* App run status for controlling the application state */
 
-    /*
-     ** Device data
-     ** TODO: Make specific to your application
-     */
+    /* Device and PayOBC data products. */
     PAYLOAD_IF_Device_tlm_t DevicePkt; /* Device specific data packet */
     PAYLOAD_IF_PayObc_tlm_t PayObcTlmPkt; /* PayOBC packet wrapped for the ground (RX task only) */
 
-    /*
-    ** Device protocol
-    ** TODO: Make specific to your application
-    */
+    /* Payload UART and streaming decoder state. */
     uart_info_t Payload_ifUart; /* Hardware protocol definition */
     CFE_ES_TaskId_t          RxTaskID;      /* Child task ID for asynchronous UART receive */
     volatile bool            RxTaskRunning; /* Set true to run RxTask loop, false to stop it */
@@ -123,7 +117,7 @@ void  PAYLOAD_IF_SendPacketToPayload(const uint8 *Packet, size_t Length);
 void  PAYLOAD_IF_ForwardToPayload(void);
 int32 PAYLOAD_IF_HandleDecodedFrame(void);
 
-/* TODO: This is specific to the payload_if application, remove if using template generator */
+/* Mission-manager compatibility telemetry. */
 void PAYLOAD_IF_ProcessMgrHk(void);
 
 #endif /* _PAYLOAD_IF_APP_H_ */

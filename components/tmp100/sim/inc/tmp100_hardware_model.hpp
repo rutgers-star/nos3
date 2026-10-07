@@ -87,6 +87,7 @@ namespace Nos3
 
         std::uint8_t                                        _enabled;
         double                                              _current_temperature;
+        bool                                                _external_temperature;
     };
 
     class I2CSlaveConnection : public NosEngine::I2C::I2CSlave

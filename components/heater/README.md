@@ -121,14 +121,14 @@ Ground Station → Thermal Control App → EPS App → EPS Simulator
 ```
 
 ### EPS Configuration
-The heater should be connected to EPS switch 1 (12V rail):
+The heater is connected to EPS switch 7, the unused 12 V output in the NOS3 mission model:
 ```xml
-<switch-1>
+<switch-7>
     <node-name>heater-sim-command-node</node-name>
     <voltage>12.00</voltage>
     <current>2.62</current>
     <hex-status>0000</hex-status> <!-- Initially OFF -->
-</switch-1>
+</switch-7>
 ```
 
 ## Command Interface
@@ -170,7 +170,7 @@ POWER_OFF
 
 ## Related Components
 - **TMP100**: Temperature sensor that reads environment temperature (influenced by heater)
-- **EPS (generic_eps)**: Controls heater power via switch 1
+- **EPS (generic_eps)**: Controls heater power via switch 7
 - **Thermal Control App**: Implements closed-loop thermal control algorithm
 
 ## Future Enhancements

@@ -15,7 +15,6 @@
 
 /*
 ** Ground Command Codes
-** TODO: Add additional commands required by the specific component
 */
 #define PAYLOAD_IF_NOOP_CC           0
 #define PAYLOAD_IF_RESET_COUNTERS_CC 1
@@ -27,7 +26,6 @@
 
 /*
 ** Telemetry Request Command Codes
-** TODO: Add additional commands required by the specific component
 */
 #define PAYLOAD_IF_REQ_HK_TLM   0
 #define PAYLOAD_IF_REQ_DATA_TLM 1
@@ -82,7 +80,7 @@ typedef struct
     CFE_MSG_TelemetryHeader_t TlmHeader;
     PAYLOAD_IF_Device_Data_tlm_t  Payload_if;
 
-    /* TODO: This is specific to the payload_if application, remove if using template generator */
+    /* Mission-manager compatibility fields. */
     uint16 PassNumber;
     uint8  RegionStatus;
 
@@ -100,9 +98,7 @@ typedef struct
     uint8                     DeviceErrorCount;
     uint8                     DeviceCount;
 
-    /*
-    ** TODO: Edit and add specific telemetry values to this struct
-    */
+    /* Link/device state. */
     uint8                  DeviceEnabled;
     PAYLOAD_IF_Device_HK_tlm_t DeviceHK;
     uint16                 HkPeriodSec; /* Seconds between periodic HK reports; 0 = off */

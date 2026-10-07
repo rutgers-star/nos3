@@ -43,7 +43,7 @@ TELEMETRY PAYLOAD_IF PAYLOAD_IF_DATA_TLM <%= CosmosCfsConfig::PROCESSOR_ENDIAN %
     GENERIC_READ_CONVERSION_START FLOAT 32
       (packet.read("RAW_PAYLOAD_IF_Z") - 32768.0)/32767.0
     GENERIC_READ_CONVERSION_END
-# TODO: This is specific to the payload_if application, remove if using template generator
+  # Mission-manager compatibility fields retained in the NOS3 device packet.
   APPEND_ITEM    PassNumber             16 UINT       "Science Pass Number"
   APPEND_ITEM    RegionStatus            8 UINT       "Science Region / Status"
       STATE SCIENCE_OFF             0

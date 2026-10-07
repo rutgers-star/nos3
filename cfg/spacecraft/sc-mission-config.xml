@@ -55,7 +55,7 @@
 			<enable>true</enable>
 		</radio>
 		<raspberry_pi>
-			<enable>true</enable>
+			<enable>false</enable>
 		</raspberry_pi>
 		<rw>
 			<enable>true</enable>

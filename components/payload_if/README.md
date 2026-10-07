@@ -1,126 +1,72 @@
-# Payload_if - NOS3 Component
-This repository contains the NOS3 Payload_if Component.
-This includes flight software (FSW), ground software (GSW), simulation, and support directories.
+# BusOBC–PayOBC payload interface
 
-## Component Template
-This component template utilizes canned files from the existing [payload_if component](https://github.com/nasa-itc/payload_if) to generate a new component to do development in.
+`payload_if` is the BusOBC cFS endpoint for SPICEsat's dedicated PayOBC serial
+link. It is not a NOS3 template device and it does not use the historical
+`0xDEAD`/`0xBEEF` request/response protocol.
 
-Expected utilization:  
-* Determine the desired component name
-* Create a new submodule for the component via GitHub
-* Add the submodule to this project
-  * `git submodule init`
-  * `git submodule add -f -b main <New_Submodule_Link> ./components/<New_Component_Name>`
-* Generate the new files
-  * `./generate_template.sh <New_Component_Name>`
-    * Note that <New_Component_Name> must be <= 10 characters by default or you'll need to shorten the software bus pipe name after the fact
-* The new files should be placed in the submodule
-  * `../<New_Component_Name>/`
-* Commit the new files to the submodule
-  * `git add * && git add .gitignore`
-  * `git commit -m "Initial component template based on version 0.0.0"`
-* Add new component to flight software (fsw) in the following files:
-  * `./fsw/nos3_defs/cpu1_cfe_es_startup.scr`
-  * `./fsw/nos3_defs/targets.cmake`
-  * `./fsw/nos3_defs/tables/*`
-* Add new component to ground software (gsw) in the following files:
-  * `./gsw/cosmos/config/system/nos3_system.txt`
-  * `./gsw/cosmos/config/tools/cmd_tlm_server/nos3_cmd_tlm_server.txt`
-  * `./gsw/scripts/launch.sh`
+## Flight contract
 
-## Overview
-In addition to being used by the template generator, the payload_if component provides an executable example for the user.
-This payload_if component is a UART device that accepts multiple commands, including requests for telemetry and data.
-The available FSW is for use in the core Flight System (cFS) while the GSW supports COSMOS.
-A NOS3 simulation is available which includes both payload_if and 42 data providers.
+- Physical interface: point-to-point full-duplex RS-422, exposed to software as
+  a 115200-baud, 8N1 UART with no flow control.
+- Frame: `1A CF FC 1D | body length (uint16, big-endian) | body | CRC-16`.
+- CRC: CRC-16/CCITT-FALSE over the encoded length and body. The sync and CRC
+  fields are excluded.
+- Body: one complete CCSDS Space Packet, 7–518 bytes. CCSDS multi-byte fields
+  are big-endian and packets must be unsegmented.
+- Routing: APID ownership and direction come from the pinned `payload-apids`
+  registry. The app rejects malformed packets and packets traveling in a
+  disallowed direction.
+- Recovery: the streaming decoder tolerates partial UART reads, multiple frames
+  in one read, garbage before sync, and resumes sync search after an invalid
+  length or CRC. This baseline has no COP-1 byte, SNACK, or automatic retry.
 
+The framing implementation is the pinned `fsw/payload-link` library. Both the
+flight app and simulator link the same implementation; neither maintains a
+private framing copy.
 
-# Device Communications
-> **Superseded.** The BusOBC and PayOBC now exchange complete CCSDS packets inside payload-link
-> frames (see the BusOBC-PayOBC integration contract). The simulator side is documented in
-> [sim/README.md](sim/README.md). The legacy protocol below is kept for reference only.
+## cFS and ground boundary
 
-The protocol, commands, and responses of the component are captured below.
+BusOBC-to-PayOBC packets are published on their internal payload MID and are
+framed unchanged for UART. PayOBC-to-BusOBC packets are validated and published
+unchanged on the cFS software bus. For ground transport, payload APIDs are
+carried inside PAYLOAD_IF messages so internal payload APIDs never collide with
+the spacecraft's S-band packet dictionary:
 
-## Protocol
-The protocol in use is UART 115200 8N1.
-The device is speak when spoken too.
-All communications with the device require / contain a header of 0xDEAD and a trailer of 0xBEEF.
+- uplink: `PAYLOAD_IF_CMD_MID`, function code `PAYLOAD_IF_FORWARD_CC`, followed
+  by the complete PayOBC CCSDS packet;
+- downlink: `PAYLOAD_IF_PAYOBC_TLM_MID`, BusOBC receive timestamp, followed by
+  the complete PayOBC CCSDS packet.
 
-## Commands
-All commands received by the device are echoed back to the sender to confirm receipt.
-Should commands involve a reply, the device immediately sends the reply after the command echo.
-Device commands are all formatted in the same manner and are fixed in size:
-* uint16, 0xDEAD
-* uint8, command identifier
-  - (0) Get Housekeeping
-  - (1) Get Payload_if
-  - (2) Set Configuration
-* uint32, command payload
-  - Unused for all but set configuration command
-* uint16, 0xBEEF
+OpenC3 command and telemetry definitions live under `gsw/PAYLOAD_IF`. The
+`PAYOBC_CMD` and `PAYOBC_STATUS` definitions exercise this encapsulation. The
+legacy YAMCS XTCE file is retained for NOS3 compatibility but is not the
+SPICEsat ground authority.
 
-## Response
-Response formats are as follows:
-* Housekeeping
-  - uint16, 0xDEAD
-  - uint32, Command Counter
-    * Increments for each command received
-  - uint32, Configuration
-    * Internal configuration number in use by the device
-    * Invalid if maximum value, 0xFFFFFFFF or 4294967295
-  - uint32, Status
-    * Self reported status of the component where zero is completely healthy and each bit represents different errors
-    * No means to clear / set status except for a power cycle to the device
-  - uint16, 0xBEEF
-* Payload_if
-  - uint16, 0xDEAD
-  - uint32, Command Counter
-    * Increments for each command received
-  - uint16, Data X
-    * X component of payload_if data
-  - uint16, Data Y
-    * X component of payload_if data
-  - uint16, Data Z
-    * X component of payload_if data
-  - uint16, 0xBEEF
+## Implementation map
 
+- `fsw/cfs`: cFS app, asynchronous UART receive task, APID validation, and
+  ground wrappers.
+- `fsw/payload-link`: framing, CRC, and streaming decoder.
+- `fsw/payload-apids`: generated APID registry and direction allowlists.
+- `sim`: deterministic PayOBC link model and fault injection.
+- `gsw/PAYLOAD_IF`: OpenC3 command, telemetry, and procedures.
 
-# Configuration
-The various configuration parameters available for each portion of the component are captured below.
+The older generic device housekeeping/data structures remain only for NOS3
+component ABI and test compatibility. They do not define the PayOBC wire
+protocol. Function code 4 (`PAYLOAD_IF_CONFIG_CC`) is reserved and rejected
+until a configuration packet is assigned in the payload APID registry.
 
-## FSW
-Refer to the file [fsw/platform_inc/payload_if_platform_cfg.h](fsw/platform_inc/payload_if_platform_cfg.h) for the default
-configuration settings, as well as a summary on overriding parameters in mission-specific repositories.
+## Verification
 
-## Simulation
-The simulator is a deterministic PayOBC link model. Its behavior, status telemetry layout, packet
-vectors, fault-injection controls, and tests are documented in [sim/README.md](sim/README.md).
+The cFS unit suite covers framing, UART chunking, APID direction, partial
+writes, restart, periodic housekeeping, and ground wrapping. The simulator
+suite and its end-to-end runner are documented in [sim/README.md](sim/README.md).
 
+```sh
+make build-test
+make test-fsw
 
-# Standalone
-To build the standalone version, assuming starting from top level NOS3 repository:
-* make debug
-* cd ./components/payload_if/support
-* mkdir build
-* cd build
-* cmake .. 
-  * Can override target selection by adding `-DTGTNAME=cpu1`
-* make
-
-To run the standalone version, assuming starting rom the top level NOS3 repository:
-* Follow the build steps above
-* make
-* make checkout
-  * Launches NOS Engine, NOS Time Driver, NOS Terminal, Payload_if Sim, and Payload_if Checkout
-* make stop
-
-# Documentation
-If this payload_if application had an ICD and/or test procedure, they would be linked here.
-
-## Releases
-We use [SemVer](http://semver.org/) for versioning. For the versions available, see the tags on this repository.
-* v1.0.0 - X/Y/Z 
-  - Updated to be a component repository including FSW, GSW, Sim, and Standalone checkout
-* v0.1.0 - 10/9/2021 
-  - Initial release with version tagging
+cmake -S components/payload_if/sim/test -B /tmp/payobc-test
+cmake --build /tmp/payobc-test
+ctest --test-dir /tmp/payobc-test --output-on-failure
+```

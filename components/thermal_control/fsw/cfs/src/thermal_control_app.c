@@ -321,12 +321,9 @@ void THERMAL_ProcessTelemetry(CFE_SB_Buffer_t *BufPtr)
 {
     TMP100_Hk_tlm_t *tmp100_hk = (TMP100_Hk_tlm_t *)BufPtr;
 
-    /* Extract temperature from TMP100 telemetry
-    ** The TMP100 stores temperature as a 12-bit value with 0.0625°C resolution
-    ** Temperature register format: int16 with centi-degrees
-    */
-    int16_t temp_register = tmp100_hk->DeviceHK.TemperatureRaw;
-    double temperature = (double)temp_register * 0.0625; /* Convert to Celsius */
+    /* The TMP100's signed 12-bit sample is left-justified in the 16-bit
+    ** register. Convert it before applying the 0.0625 degree/LSB scale. */
+    double temperature = THERMAL_Tmp100RawToCelsius(tmp100_hk->DeviceHK.TemperatureRaw);
 
     /* Update current temperature */
     THERMAL_AppData.CurrentTemperature = temperature;
@@ -336,6 +333,18 @@ void THERMAL_ProcessTelemetry(CFE_SB_Buffer_t *BufPtr)
     {
         THERMAL_UpdateControlLoop(temperature);
     }
+}
+
+double THERMAL_Tmp100RawToCelsius(uint16_t raw_temperature)
+{
+    uint16_t counts = raw_temperature >> 4;
+
+    if ((counts & 0x0800U) != 0U)
+    {
+        counts |= 0xF000U;
+    }
+
+    return (double)(int16_t)counts * 0.0625;
 }
 
 /*
@@ -446,10 +455,15 @@ void THERMAL_EnableControl(void)
 }
 
 /*
-** Disable thermal control (leaves heater in current state)
+** Disable thermal control and leave the heater in its fail-safe OFF state.
 */
 void THERMAL_DisableControl(void)
 {
+    if (THERMAL_AppData.HeaterState)
+    {
+        THERMAL_CommandHeater(false);
+    }
+
     THERMAL_AppData.ControlEnabled = false;
     THERMAL_AppData.State = THERMAL_STATE_DISABLED;
 

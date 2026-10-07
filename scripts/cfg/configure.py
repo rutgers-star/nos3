@@ -486,6 +486,7 @@ else:
         imu_index = 999
         mag_index = 999
         radio_index = 999
+        raspberry_pi_index = 999
         rw0_index = 999
         rw1_index = 999
         rw2_index = 999
@@ -525,6 +526,9 @@ else:
                 if line.find('radio-sim</name>') != -1:
                     if (lines.index(line)) < radio_index:
                         radio_index = lines.index(line) + 1
+                if line.find('raspberry-pi-sim</name>') != -1:
+                    if (lines.index(line)) < raspberry_pi_index:
+                        raspberry_pi_index = lines.index(line) + 1
                 if line.find('reactionwheel-sim0</name>') != -1:
                     if (lines.index(line)) < rw0_index:
                         rw0_index = lines.index(line) + 1
@@ -570,6 +574,8 @@ else:
             lines[mag_index] = sim_disabled
         if (sc_radio_en != 'true'):
             lines[radio_index] = sim_disabled
+        if (sc_raspberry_pi_en != 'true'):
+            lines[raspberry_pi_index] = sim_disabled
         if (sc_rw_en != 'true'):
             lines[rw0_index] = sim_disabled
             lines[rw1_index] = sim_disabled

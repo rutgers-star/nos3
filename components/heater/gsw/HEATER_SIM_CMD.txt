@@ -1,7 +1,7 @@
-COMMAND SIM_CMDBUS_BRIDGE HEATER_SIM_ENABLE BIG_ENDIAN "Enable Heater Sim"
+COMMAND SIM_CMDBUS_BRIDGE HEATER_SIM_ENABLE BIG_ENDIAN "Energize the heater (same command sent by EPS output ON)"
   APPEND_PARAMETER CMD_TEMPLATE 0 STRING '{"node":"heater-sim-command-node","cmd":"ENABLE"}'
 
-COMMAND SIM_CMDBUS_BRIDGE HEATER_SIM_DISABLE BIG_ENDIAN "Disable Heater Sim"
+COMMAND SIM_CMDBUS_BRIDGE HEATER_SIM_DISABLE BIG_ENDIAN "De-energize the heater while keeping simulator interfaces responsive"
   APPEND_PARAMETER CMD_TEMPLATE 0 STRING '{"node":"heater-sim-command-node","cmd":"DISABLE"}'
 
 COMMAND SIM_CMDBUS_BRIDGE HEATER_SIM_SET_TEMPERATURE BIG_ENDIAN "Set Heater Sim Temperature (Celsius)"

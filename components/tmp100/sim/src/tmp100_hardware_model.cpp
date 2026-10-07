@@ -8,7 +8,8 @@ namespace Nos3
 
     Tmp100HardwareModel::Tmp100HardwareModel(const boost::property_tree::ptree& config) : SimIHardwareModel(config),
     _pointer_register(TMP100_REG_TEMPERATURE), _temperature_register(0), _config_register(0x60),
-    _tlow_register(0), _thigh_register(0), _enabled(TMP100_SIM_SUCCESS), _current_temperature(25.0)
+    _tlow_register(0), _thigh_register(0), _enabled(TMP100_SIM_SUCCESS), _current_temperature(25.0),
+    _external_temperature(false)
     {
         /* Get the NOS engine connection string */
         std::string connection_string = config.get("common.nos-connection-string", "tcp://127.0.0.1:12001");
@@ -16,8 +17,8 @@ namespace Nos3
 
         // Set up the time node which is **required** for this model
         std::string time_bus_name = "command";
-        if (config.get_child_optional("hardware-model.connections")) {
-            BOOST_FOREACH(const boost::property_tree::ptree::value_type &v, config.get_child("hardware-model.connections")) {
+        if (config.get_child_optional("simulator.hardware-model.connections")) {
+            BOOST_FOREACH(const boost::property_tree::ptree::value_type &v, config.get_child("simulator.hardware-model.connections")) {
                 if (v.second.get("type", "").compare("time") == 0) {
                     time_bus_name = v.second.get("bus-name", "command");
                     break;
@@ -54,11 +55,11 @@ namespace Nos3
 
         /* Get on the command bus */
         _command_bus_name = "command";
-        if (config.get_child_optional("hardware-model.connections"))
+        if (config.get_child_optional("simulator.hardware-model.connections"))
         {
-            BOOST_FOREACH(const boost::property_tree::ptree::value_type &v, config.get_child("hardware-model.connections"))
+            BOOST_FOREACH(const boost::property_tree::ptree::value_type &v, config.get_child("simulator.hardware-model.connections"))
             {
-                if (v.second.get("type", "").compare("time") == 0)
+                if (v.second.get("type", "").compare("command") == 0)
                 {
                     _command_bus_name = v.second.get("bus-name", "command");
                     break;
@@ -108,7 +109,7 @@ namespace Nos3
         boost::to_upper(command);
         if (command.compare("HELP") == 0)
         {
-            response = "Tmp100HardwareModel::command_callback: Valid commands are HELP, ENABLE, DISABLE, TEMPERATURE=X, or STOP";
+            response = "Tmp100HardwareModel::command_callback: Valid commands are HELP, ENABLE, DISABLE, TEMPERATURE=X, USE_PROVIDER, or STOP";
         }
         else if (command.compare("ENABLE") == 0)
         {
@@ -127,6 +128,7 @@ namespace Nos3
                 /* Temperature update from heater or manual command */
                 _current_temperature = std::stod(command.substr(12));
                 _temperature_register = temperature_to_register(_current_temperature);
+                _external_temperature = true;
                 response = "Tmp100HardwareModel::command_callback:  Temperature set to " + std::to_string(_current_temperature) + "°C";
                 sim_logger->debug("Tmp100HardwareModel::command_callback:  Temperature updated: %.2f°C", _current_temperature);
             }
@@ -134,6 +136,11 @@ namespace Nos3
             {
                 response = "Tmp100HardwareModel::command_callback:  Temperature invalid";
             }
+        }
+        else if (command.compare("USE_PROVIDER") == 0)
+        {
+            _external_temperature = false;
+            response = "Tmp100HardwareModel::command_callback:  Temperature returned to the configured provider";
         }
         else if (command.compare("STOP") == 0)
         {
@@ -252,7 +259,8 @@ namespace Nos3
         _i2c_out_data.resize(2);  // TMP100 always returns 2 bytes
 
         /* Update temperature from data provider if reading temperature register */
-        if (_hardware_model->_pointer_register == TMP100_REG_TEMPERATURE)
+        if (_hardware_model->_pointer_register == TMP100_REG_TEMPERATURE &&
+            !_hardware_model->_external_temperature)
         {
             if (_hardware_model->_tmp100_dp != nullptr)
             {

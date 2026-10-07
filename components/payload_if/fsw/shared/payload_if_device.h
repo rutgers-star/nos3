@@ -19,8 +19,8 @@
 #endif
 
 /*
-** Type definitions
-** TODO: Make specific to your application
+** Legacy NOS3 compatibility type definitions. These are not the PayOBC wire
+** protocol; new traffic uses payload-link frames containing CCSDS packets.
 */
 #define PAYLOAD_IF_DEVICE_HDR   0xDEAD
 #define PAYLOAD_IF_DEVICE_HDR_0 0xDE

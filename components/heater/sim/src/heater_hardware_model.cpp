@@ -17,8 +17,8 @@ namespace Nos3
 
         // Set up the time node which is **required** for this model
         std::string time_bus_name = "command";
-        if (config.get_child_optional("hardware-model.connections")) {
-            BOOST_FOREACH(const boost::property_tree::ptree::value_type &v, config.get_child("hardware-model.connections")) {
+        if (config.get_child_optional("simulator.hardware-model.connections")) {
+            BOOST_FOREACH(const boost::property_tree::ptree::value_type &v, config.get_child("simulator.hardware-model.connections")) {
                 if (v.second.get("type", "").compare("time") == 0) {
                     time_bus_name = v.second.get("bus-name", "command");
                     break;
@@ -69,11 +69,11 @@ namespace Nos3
 
         /* Get on the command bus */
         _command_bus_name = "command";
-        if (config.get_child_optional("hardware-model.connections"))
+        if (config.get_child_optional("simulator.hardware-model.connections"))
         {
-            BOOST_FOREACH(const boost::property_tree::ptree::value_type &v, config.get_child("hardware-model.connections"))
+            BOOST_FOREACH(const boost::property_tree::ptree::value_type &v, config.get_child("simulator.hardware-model.connections"))
             {
-                if (v.second.get("type", "").compare("time") == 0)
+                if (v.second.get("type", "").compare("command") == 0)
                 {
                     _command_bus_name = v.second.get("bus-name", "command");
                     break;
@@ -127,16 +127,14 @@ namespace Nos3
         }
         else if (command.compare("ENABLE") == 0)
         {
-            _enabled = HEATER_SIM_SUCCESS;
-            response = "HeaterHardwareModel::command_callback:  Enabled (sent from EPS switch ON)";
+            response = "HeaterHardwareModel::command_callback:  Power ON (EPS output enabled)";
             _power_state = true;
             _power_register = 0xAA;
             _status_register = 0x01; // Set power bit
         }
         else if (command.compare("DISABLE") == 0)
         {
-            _enabled = HEATER_SIM_ERROR;
-            response = "HeaterHardwareModel::command_callback:  Disabled (sent from EPS switch OFF)";
+            response = "HeaterHardwareModel::command_callback:  Power OFF (EPS output disabled)";
             _power_state = false;
             _power_register = 0x00;
             _status_register = 0x00; // Clear power bit

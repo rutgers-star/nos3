@@ -1,7 +1,7 @@
 # Thermal Control Application - NOS3
 
 ## Overview
-The thermal_control application implements closed-loop thermal control for spacecraft by monitoring the TMP100 temperature sensor and commanding the heater (via EPS switch 1) to maintain temperature within acceptable limits.
+The thermal_control application implements closed-loop thermal control for spacecraft by monitoring the TMP100 temperature sensor and commanding the heater through the dedicated 12 V EPS switch 7 in the NOS3 mission model.
 
 ## Purpose
 This cFS application demonstrates realistic spacecraft thermal control:
@@ -121,7 +121,7 @@ THERMAL RESET_COUNTERS
 | ControlEnabled | uint8 | 1=enabled, 0=disabled |
 | ControlState | uint8 | Current state (0=DISABLED, 1=IDLE, 2=HEATING, 3=COOLING) |
 | HeaterState | uint8 | Current heater power state (1=ON, 0=OFF) |
-| HeaterEpsSwitch | uint8 | EPS switch number controlling heater (default=1) |
+| HeaterEpsSwitch | uint8 | EPS switch number controlling heater (default=7) |
 | CurrentTemperature | float | Most recent temperature reading (°C) |
 | TempLowThreshold | float | Turn heater ON below this (°C) |
 | TempHighThreshold | float | Turn heater OFF above this (°C) |
@@ -167,7 +167,7 @@ THERMAL RESET_COUNTERS
 ```c
 #define THERMAL_TEMP_LOW_THRESHOLD   20.0  // Turn heater ON below this (°C)
 #define THERMAL_TEMP_HIGH_THRESHOLD  25.0  // Turn heater OFF above this (°C)
-#define THERMAL_HEATER_EPS_SWITCH    1     // EPS switch controlling heater
+#define THERMAL_HEATER_EPS_SWITCH    7     // Dedicated 12 V heater output in NOS3
 ```
 
 ### Startup Configuration
@@ -196,7 +196,7 @@ The app requires these message IDs to be defined:
 The thermal_control app sends commands to EPS:
 ```c
 GENERIC_EPS_Switch_cmd_t cmd;
-cmd.SwitchNumber = 1;           // Heater on switch 1
+cmd.SwitchNumber = 7;           // Dedicated 12 V heater output
 cmd.State = 0xAA;               // 0xAA = ON, 0x00 = OFF
 ```
 
@@ -214,13 +214,13 @@ EPS then sends ENABLE/DISABLE commands to the heater simulator via NOS Engine.
 ### Typical Operating Cycle
 1. **Cold Start** (temp = 18°C):
    - Detects temp < 20°C (low threshold)
-   - Commands EPS: "Turn switch 1 ON"
+   - Commands EPS: "Turn switch 7 ON"
    - State → HEATING
    - Temperature rises at ~2°C/min
 
 2. **Warm Phase** (temp reaches 26°C):
    - Detects temp > 25°C (high threshold)
-   - Commands EPS: "Turn switch 1 OFF"
+   - Commands EPS: "Turn switch 7 OFF"
    - State → COOLING
    - Temperature falls at ~0.5°C/min
 
@@ -244,7 +244,7 @@ Ground operators can override automatic control:
 1. Verify control is enabled: `ControlEnabled = 1`
 2. Check current temperature vs low threshold
 3. Verify EPS command was sent (check event log)
-4. Check EPS switch 1 configuration
+4. Check EPS switch 7 configuration
 5. Verify heater simulator is receiving ENABLE commands
 
 ### Temperature Not Changing
