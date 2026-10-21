@@ -9,7 +9,8 @@ namespace Nos3
     HeaterHardwareModel::HeaterHardwareModel(const boost::property_tree::ptree& config) : SimIHardwareModel(config),
     _pointer_register(HEATER_REG_STATUS), _status_register(0), _power_register(0x00),
     _temperature_register(0), _enabled(HEATER_SIM_SUCCESS), _power_state(false),
-    _heater_temperature(25.0), _ambient_temperature(20.0)
+    _heater_temperature(25.0), _ambient_temperature(20.0),
+    _tmp100_temperature_sent(false), _last_tmp100_temperature_counts(0)
     {
         /* Get the NOS engine connection string */
         std::string connection_string = config.get("common.nos-connection-string", "tcp://127.0.0.1:12001");
@@ -222,12 +223,15 @@ namespace Nos3
             log_counter = 0;
         }
 
-        // Send temperature update to TMP100 simulator via command bus
-        // This allows the TMP100 to read the environmental temperature including heater influence
-        if (_command_node) {
+        // TMP100 resolves temperature in 0.0625°C steps. Avoid sending an
+        // unchanged sensor value on every time tick.
+        const int16_t tmp100_counts = static_cast<int16_t>(_heater_temperature / 0.0625);
+        if (_command_node && (!_tmp100_temperature_sent || tmp100_counts != _last_tmp100_temperature_counts)) {
             std::string tmp100_msg = "TEMPERATURE=" + std::to_string(_heater_temperature);
             _command_node->send_non_confirmed_message_async("tmp100-sim-command-node",
                 tmp100_msg.length(), tmp100_msg.c_str());
+            _last_tmp100_temperature_counts = tmp100_counts;
+            _tmp100_temperature_sent = true;
         }
     }
 

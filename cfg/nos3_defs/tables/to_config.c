@@ -106,7 +106,7 @@ TO_ConfigTable_t to_ConfigTable =
        {CFE_SB_MSGID_WRAP_VALUE(CFE_ES_APP_TLM_MID),           {0,0},  1,   0xffff,     TO_GROUP_CFE | TO_MGROUP_ONE, 0,1},
        {CFE_SB_MSGID_WRAP_VALUE(CFE_ES_HK_TLM_MID),            {0,0},  1,   0xffff,     TO_GROUP_CFE | TO_MGROUP_ONE, 0,1},
        {CFE_SB_MSGID_WRAP_VALUE(CFE_ES_MEMSTATS_TLM_MID),      {0,0},  1,   0xffff,     TO_GROUP_CFE | TO_MGROUP_ONE, 0,1},
-       {CFE_SB_MSGID_WRAP_VALUE(CFE_SB_ALLSUBS_TLM_MID),       {0,0},  1,   0xffff,     TO_GROUP_CFE | TO_MGROUP_ONE, 0,1},
+       {CFE_SB_MSGID_WRAP_VALUE(CFE_SB_ALLSUBS_TLM_MID),       {0,0},  16,  0xffff,     TO_GROUP_CFE | TO_MGROUP_ONE, 0,1},
        {CFE_SB_MSGID_WRAP_VALUE(CFE_SB_HK_TLM_MID),            {0,0},  1,   0xffff,     TO_GROUP_CFE | TO_MGROUP_ONE, 0,1},
        {CFE_SB_MSGID_WRAP_VALUE(CFE_SB_ONESUB_TLM_MID),        {0,0},  1,   0xffff,     TO_GROUP_CFE | TO_MGROUP_ONE, 0,1},
        {CFE_SB_MSGID_WRAP_VALUE(CFE_SB_STATS_TLM_MID),         {0,0},  1,   0xffff,     TO_GROUP_CFE | TO_MGROUP_ONE, 0,1},

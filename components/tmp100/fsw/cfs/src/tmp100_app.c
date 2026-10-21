@@ -487,17 +487,8 @@ void TMP100_ReportDeviceTelemetry(void)
                               "TMP100: Request device data reported error %d", status);
         }
 
-        /* Check device status and act on error */
-        if (TMP100_AppData.HkTelemetryPkt.DeviceHK.TemperatureRaw != 0)
-        {
-            /* Any bit is an error, halting communication until device power cycled */
-            TMP100_Disable();
-
-            /* Send device status error to the console */
-            CFE_EVS_SendEvent(TMP100_REQ_DATA_STATUS_ERR_EID, CFE_EVS_EventType_ERROR,
-                              "TMP100: Request device data reported status error %d",
-                              TMP100_AppData.HkTelemetryPkt.DeviceHK.TemperatureRaw);
-        }
+        /* TemperatureRaw is sensor data, not a status register.  A nonzero
+         * temperature must not disable the device after a successful read. */
     }
     /* Intentionally do not report errors if device disabled */
     return;

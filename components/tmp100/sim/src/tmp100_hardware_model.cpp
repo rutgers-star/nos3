@@ -101,10 +101,14 @@ namespace Nos3
     {
         /* Get the data out of the message */
         NosEngine::Common::DataBufferOverlay dbf(const_cast<NosEngine::Utility::Buffer&>(msg.buffer));
-        sim_logger->info("Tmp100HardwareModel::command_callback:  Received command: %s.", dbf.data);
+        std::string command(dbf.data, dbf.len);
+        while (!command.empty() && command.back() == '\0')
+        {
+            command.pop_back();
+        }
+        sim_logger->info("Tmp100HardwareModel::command_callback:  Received command: %s.", command.c_str());
 
         /* Do something with the data */
-        std::string command = dbf.data;
         std::string response = "Tmp100HardwareModel::command_callback:  INVALID COMMAND! (Try HELP)";
         boost::to_upper(command);
         if (command.compare("HELP") == 0)

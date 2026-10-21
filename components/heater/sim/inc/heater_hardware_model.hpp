@@ -76,6 +76,8 @@ namespace Nos3
         bool                                                _power_state;        // true=ON, false=OFF
         double                                              _heater_temperature; // Current heater temperature in Celsius
         double                                              _ambient_temperature; // Ambient/environment temperature
+        bool                                                _tmp100_temperature_sent;
+        int16_t                                             _last_tmp100_temperature_counts;
 
         /* Physical heater parameters (from thermal team specs) */
         double                                              _heater_power_watts;      // 31.4W
