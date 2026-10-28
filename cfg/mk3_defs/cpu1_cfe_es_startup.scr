@@ -1,0 +1,3 @@
+CFE_APP, ci_lab, CI_Lab_AppMain, CI_LAB_APP, 80, 16384, 0x0, 0;
+CFE_APP, to_lab, TO_LAB_AppMain, TO_LAB_APP, 81, 32768, 0x0, 0;
+!
