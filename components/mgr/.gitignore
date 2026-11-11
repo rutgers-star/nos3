@@ -1,0 +1,16 @@
+#
+# Metadata
+#
+.vagrant
+.vscode
+
+#
+# Build Files
+#
+build
+fprime/build
+fsw/standalone/build
+tmp
+.cdskeyfile
+.reservedkeyfile
+.resetkeyfile
