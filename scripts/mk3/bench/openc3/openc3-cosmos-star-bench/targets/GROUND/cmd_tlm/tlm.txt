@@ -1,0 +1,21 @@
+# Computed by sdr-link on the laptop from the traffic it carries. The flight software has no
+# payload link watchdog yet, so this is ground detection, not onboard fault detection.
+TELEMETRY GROUND LINK_MONITOR BIG_ENDIAN "RS-422 link health as seen from the ground"
+  APPEND_ID_ITEM CCSDS_STREAMID 16 UINT 0x08F0 "Ground-only packet ID"
+  APPEND_ITEM CCSDS_SEQUENCE    16 UINT "Sequence control"
+  APPEND_ITEM CCSDS_LENGTH      16 UINT "Length"
+  APPEND_ITEM LINK_STATE         8 UINT "UP: Pi packets within 3 s. STALE: none for 3 s. LOST: none for 10 s"
+    STATE UP      0 GREEN
+    STATE STALE   1 YELLOW
+    STATE LOST    2 RED
+    STATE WAITING 3 YELLOW
+  APPEND_ITEM SECONDS_SINCE_PI  32 FLOAT "Seconds since the last packet from the Pi"
+    FORMAT_STRING "%.1f"
+    UNITS seconds s
+  APPEND_ITEM PI_PACKETS        32 UINT "Packets received from the Pi"
+  APPEND_ITEM COMMANDS_TO_PI    32 UINT "Commands sent to the Pi that expect a reply"
+  APPEND_ITEM REPLIES           32 UINT "Replies received"
+  APPEND_ITEM UNANSWERED        32 UINT "Commands with no reply within 3 s"
+    LIMITS DEFAULT 1 ENABLED -1 -1 0.5 0.5
+  APPEND_ITEM LINK_LOSSES       32 UINT "Times the link went LOST"
+  APPEND_ITEM LAST_FAULT       640 STRING "Most recent thing the monitor noticed"
