@@ -1,0 +1,46 @@
+Set the UART speed after c_cflag is assigned. On Linux the baud rate lives in c_cflag, so
+assigning c_cflag after cfsetispeed/cfsetospeed left every port at B0 (no output at all).
+Found on the busOBC (SDR MK3) payload link, 2026-10-27. Not fixed in nasa-itc/hwlib as of
+2026-11-14 (main, dev); drop this patch once it is.
+
+diff --git a/fsw/linux/libuart.c b/fsw/linux/libuart.c
+index fbbb87f..498e91e 100644
+--- a/fsw/linux/libuart.c
++++ b/fsw/linux/libuart.c
+@@ -106,16 +106,6 @@ int32_t uart_init_port(uart_info_t* device)
+         status = OS_ERR_FILE;
+         return status;
+     }
+-    if(cfsetispeed(&device->options,speed)<0)
+-    {
+-        status = OS_ERR_FILE;
+-        return status;
+-    }
+-    if(cfsetospeed(&device->options,speed)<0)
+-    {
+-        status = OS_ERR_FILE;
+-        return status;
+-    }
+ 
+     // Raw byte mode - no strings and no CRLF
+     device->options.c_iflag      = IGNBRK | INPCK;
+@@ -127,6 +117,19 @@ int32_t uart_init_port(uart_info_t* device)
+         device->options.c_lflag |= ICANON;
+     }
+ 
++    // Set the speed after c_cflag is assigned: on Linux the baud rate is held in
++    // c_cflag, so assigning it afterwards would leave the port at B0
++    if(cfsetispeed(&device->options,speed)<0)
++    {
++        status = OS_ERR_FILE;
++        return status;
++    }
++    if(cfsetospeed(&device->options,speed)<0)
++    {
++        status = OS_ERR_FILE;
++        return status;
++    }
++
+     // Set the port to blocking read with timeout of 0.1 sec
+     device->options.c_cc[VMIN] = 0;       // min of bytes to read
+     device->options.c_cc[VTIME] = 1;      // intra-byte time to wait - tenths of sec

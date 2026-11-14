@@ -57,6 +57,8 @@ fi
 #fi
 
 DBOX="ivvitc/nos3-64:20260619"
+# Cross-compilation image for the busOBC (NanoCom SDR MK3), built from scripts/mk3/Dockerfile
+DBOX_MK3="star-fsw/mk3-armhf"
 
 # Radio Config
 RADIO_TX_FSW_PORT=5010

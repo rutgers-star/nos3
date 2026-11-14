@@ -1,0 +1,20 @@
+#!/bin/sh
+#
+# Print every byte the busOBC sends to the bench Pi, as hex with a timestamp.
+# Ctrl-C stops it. Only while daemond is stopped: a second reader on the port would
+# take bytes away from daemond.
+#
+UART=${UART:-/dev/ttyS0}
+if pgrep -x daemond > /dev/null || pgrep -x Communications > /dev/null; then
+    echo "daemond is running and owns $UART. Stop it first (Ctrl-C in its window)." >&2
+    exit 1
+fi
+stty -F "$UART" 115200 raw -echo || exit 1
+echo "Watching $UART at 115200. A time sync ping is: 1a cf fc 1d 00 0b 18 10 c0 00 00 04 03 00 00 00 2a d8 2e"
+UART=$UART exec python3 -u -c '
+import os, time
+fd = os.open(os.environ["UART"], os.O_RDONLY | os.O_NOCTTY)
+while True:
+    d = os.read(fd, 256)
+    print(time.strftime("%H:%M:%S"), "%3d bytes:" % len(d), d.hex(" "))
+'

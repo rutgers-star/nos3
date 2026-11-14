@@ -40,7 +40,7 @@ endif
 
 # The "LOCALTGTS" defines the top-level targets that are implemented in this makefile
 # Any other target may also be given, in that case it will simply be passed through.
-LOCALTGTS := all checkout clean clean-fsw clean-sim clean-gsw code-coverage config debug fsw gcov gsw help help-all launch log prep sim stop stop-gsw uninstall
+LOCALTGTS := all checkout clean clean-fsw clean-fsw-mk3 clean-sim clean-gsw code-coverage config debug fsw fsw-mk3 fsw-mk3-package gcov gsw help help-all launch log prep sim stop stop-gsw uninstall
 OTHERTGTS := $(filter-out $(LOCALTGTS),$(MAKECMDGOALS))
 
 # As this makefile does not build any real files, treat everything as a PHONY target
@@ -129,6 +129,7 @@ yamcs-operator:  ## Launch as a YAMCS operator viewpoint
 
 clean: ## Clean all build files and configurations
 	$(MAKE) clean-fsw
+	$(MAKE) clean-fsw-mk3
 	$(MAKE) clean-sim
 	$(MAKE) clean-gsw
 	rm -rf cfg/build
@@ -142,6 +143,9 @@ clean-fsw: ## Clean only flight software build artifacts
 	rm -rf fsw/fprime/fprime-nos3/fprime-venv
 	rm -rf fsw/fprime/fprime-nos3/logs
 	rm -f fsw/fprime/fprime-nos3/Sequences/*.bin
+
+clean-fsw-mk3: ## Clean only busOBC (NanoCom SDR MK3) flight software build artifacts
+	rm -rf fsw/build-mk3*/ dist/mk3
 
 clean-sim: ## Clean only simulator build artifacts
 	rm -rf sims/build
@@ -164,6 +168,12 @@ debug: ## Launch the debug container terminal
 
 fsw:  ## Build Flight Software binaries
 	./cfg/build/fsw_build.sh
+
+fsw-mk3: ## Cross-compile cFS for the busOBC (NanoCom SDR MK3); MK3_PROFILE=base|star|link (default link)
+	./scripts/mk3/container.sh build.sh
+
+fsw-mk3-package: ## Package the busOBC (NanoCom SDR MK3) build to copy onto the board
+	./scripts/mk3/container.sh package.sh
 
 gcov: ## Build Code Coverage results
 	cd $(COVERAGEDIR) && ctest -O ctest.log
@@ -224,6 +234,8 @@ help-all: ## Displays advanced help information
 	@printf "\t%-20s %s\n" "checkout"       "Run a checkout application (may require reconfiguration)"
 	@printf "\t%-20s %s\n" "debug"          "Launch the debug container terminal"
 	@printf "\t%-20s %s\n" "fsw"            "Build Flight Software Binaries"
+	@printf "\t%-20s %s\n" "fsw-mk3"        "Cross-compile cFS for the busOBC (SDR MK3); MK3_PROFILE=base|star|link"
+	@printf "\t%-20s %s\n" "fsw-mk3-package" "Package the busOBC (SDR MK3) build to copy onto the board"
 	@printf "\t%-20s %s\n" "gcov"           "Build Code Coverage Results"
 	@printf "\t%-20s %s\n" "gsw"            "Build Ground Software Binaries"
 	@printf "\t%-20s %s\n" "sim"            "Build Simulation Binaries"
@@ -240,6 +252,7 @@ help-all: ## Displays advanced help information
 	@echo "Cleanup:"
 	@printf "\t%-20s %s\n" "clean"          "Clean all build files and configurations"
 	@printf "\t%-20s %s\n" "clean-fsw"      "Clean only Flight Software build artifacts"
+	@printf "\t%-20s %s\n" "clean-fsw-mk3"  "Clean only busOBC (SDR MK3) Flight Software build artifacts"
 	@printf "\t%-20s %s\n" "clean-gsw"      "Clean only Ground Software build artifacts"
 	@printf "\t%-20s %s\n" "clean-sim"      "Clean only Simulation build artifacts"
 	@printf "\t%-20s %s\n" "log"            "Log Outputs"
