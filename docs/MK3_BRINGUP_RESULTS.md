@@ -28,6 +28,8 @@ Package: `dist/mk3/spicesat-mk3-53511fae-20261014T002509Z.tar.gz` with adjacent 
 
 ## Current remaining checks
 
+Items 1 and 3 have since been done on the physical board with container builds: see [Physical board runs](#physical-board-runs-2026-10-27-to-2026-10-30).
+
 1. Confirm the USB transfer method and install each `LOCALQ` package in a separate versioned directory under writable `/data`. Verify both archive and internal checksums, then run `core-cpu1` manually from each `cpu1` directory and capture startup and app load events.
 2. Establish a clean stop procedure before repeated physical runs; Ctrl-C requested a cFE processor reset in QEMU.
 3. Confirm `libsocketcan.so.2` on the board before loading STAR hardware modules. With a verified command and telemetry transport, send harmless NOOP and housekeeping requests; record events, counters, and telemetry.
@@ -68,3 +70,25 @@ Both revised installed ARM trees reached cFE `OPERATIONAL` and loaded `ci_lab` a
 ## Commit candidate review, 2026-10-27
 
 The MK3 queue backend now checks the queue object ID while holding its mutex, preventing a stale operation from using a newly allocated queue in the same slot. The package manifest now includes hashes for each MK3 source file and the full tracked diff against HEAD. Current remaining checks above replace the earlier queue-blocker guidance. `bash scripts/mk3/test_localq.sh`, both ARM `mission-install` builds, both package checks, archive hashes, and internal checksums passed. The newly packaged base archive `spicesat-mk3-base-localq-a2f9942f-20261028T011620Z.tar.gz` and STAR archive `spicesat-mk3-star-localq-a2f9942f-20261028T011623Z.tar.gz` were each verified inside a disposable QEMU guest and reached cFE `OPERATIONAL` on the original kernel. The Desktop `MK3_BASE_CFS_LOCALQ.zip` and `MK3_STAR_CFS_LOCALQ.zip` contain these exact archives and passed ZIP integrity checks. Earlier Desktop folders and ZIPs were deleted after verification; older archives remain in `dist/mk3/`.
+
+## Physical board runs, 2026-10-27 to 2026-10-30
+
+These used builds from a Debian 12 `arm-linux-gnueabihf` cross compiler, with an earlier in-process queue implementation in place of `cfg/mk3_osal` (same approach: kernel mqueues swapped for a mutex-guarded ring buffer). Packages went to `/data/star` over the J1 debug console with base64, checked with `sha256sum -c`.
+
+| Date | Check | Result |
+| --- | --- | --- |
+| 10-27 | cFS start on the board, no preload | `CFE_ES_Main entering OPERATIONAL state`, `ci_lab` and `to_lab` up |
+| 10-27 | `payload_if` on a UART | Port stayed at B0 until hwlib's `uart_init_port` set the speed after `c_cflag` (now `scripts/mk3/patches/hwlib`) |
+| 10-28 | Which device J14 is | `serial@45540000`, `/dev/ttyS3`, created by `pl-rs422.service`. Enabled persistently on the bench board; a reboot brought it up |
+| 10-28 | busOBC to PayOBC over J14, no ground wire | 3 pings, 57 of 57 bytes at the Pi, exact frames, 0 errors |
+| 10-28 | PayOBC to busOBC | `payload_if` accepted 5 of 5 heartbeats, 0 device errors |
+| 10-30 | OpenC3 on a laptop to the real PayOBC, through `scripts/mk3/bench` | 25 of 25 checks; the Pi UART received exactly 152 bytes for 8 commands of 19 |
+| 10-30 | Full rehearsal, `sdr-link-check` | 60 of 60: every command, cFE housekeeping (cFE 6.7, 3 apps), injected bad frames, port close and reopen |
+
+Seen on the way: the FTDI debug cable dropped off USB twice on 10-30 and came back only after the board was power cycled; OSAL's posix heap query is not implemented, so ES housekeeping reports 0 free heap bytes; the board's `CFE_SB_STATS` packet is 256 bytes longer than the NOS3 ground definition.
+
+## Merged build, 2026-11-14
+
+This branch merges the container toolchain and payload link into `cfg/mk3_defs`, with `cfg/mk3_osal` as the only queue backend. The link profile builds and packages in the container (208 KB, all package checks passing), and so do base and star. `scripts/mk3/test_localq.sh` passes, and so do OSAL's own queue and timing tests with this backend, the same as with stock OSAL. Building it found that TO_LAB was using its own default subscription table, which would have downlinked nothing from `payload_if`; `cfg/mk3_defs/tables/to_lab_sub.c` fixes that for every profile.
+
+**Not yet run on the board.** Before merging: deploy the link package with `sdr-deploy`, start `sdr-link`, and run `sdr-link-check` (scripts/mk3/bench/README.md).
