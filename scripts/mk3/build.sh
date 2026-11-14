@@ -3,19 +3,22 @@ set -euo pipefail
 
 mk3_repo=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 mk3_profile=${MK3_PROFILE:-base}
-export MK3_PROFILE="$mk3_profile"
+mk3_toolchain=${MK3_TOOLCHAIN:-mk3-arm}
+export MK3_PROFILE="$mk3_profile" MK3_TOOLCHAIN="$mk3_toolchain"
 export OSAL_EXT_SOURCE_DIR="$mk3_repo/cfg/mk3_osal"
-case "$mk3_profile" in
-    base) mk3_build="$mk3_repo/fsw/build-mk3-localq" ;;
-    star)
-        mk3_build="$mk3_repo/fsw/build-mk3-star-localq"
-        export CFS_APP_PATH="$mk3_repo/components${CFS_APP_PATH:+:$CFS_APP_PATH}"
-        ;;
-    *) echo "MK3_PROFILE must be base or star" >&2; exit 2 ;;
-esac
+source "$mk3_repo/scripts/mk3/build-dir.sh"
+if [[ "$mk3_profile" != base ]]; then
+    export CFS_APP_PATH="$mk3_repo/components${CFS_APP_PATH:+:$CFS_APP_PATH}"
+fi
 mk3_sdk_env=${MK3_SDK_ENV:-}
+mk3_cc_flags=()
 
-if [[ -n "$mk3_sdk_env" ]]; then
+if [[ "$mk3_toolchain" == mk3-armhf ]]; then
+    command -v arm-linux-gnueabihf-gcc > /dev/null || {
+        echo "mk3-armhf needs Debian's armhf cross compiler: run it through make fsw-mk3" >&2; exit 2;
+    }
+    export MK3_CC=arm-linux-gnueabihf-gcc
+elif [[ -n "$mk3_sdk_env" ]]; then
     [[ -f "$mk3_sdk_env" ]] || { echo "SDK environment not found: $mk3_sdk_env" >&2; exit 2; }
     # The vendor-generated setup file is sourced only inside this process.
     set +u
@@ -54,27 +57,47 @@ else
     exit 2
 fi
 
-for mk3_path in "$MK3_CC" "$MK3_CXX" "$MK3_SYSROOT" "$MK3_BINUTILS_DIR"; do
-    [[ -e "$mk3_path" ]] || { echo "Missing MK3 prerequisite: $mk3_path" >&2; exit 2; }
-done
-if [[ "$mk3_profile" == star ]]; then
-    if [[ -z "${MK3_SOCKETCAN_ROOT:-}" ]]; then
-        if [[ -f "$MK3_SYSROOT/usr/include/libsocketcan.h" ]]; then
-            export MK3_SOCKETCAN_ROOT="$MK3_SYSROOT/usr"
-        else
-            echo "STAR build requires libsocketcan development headers and library; set MK3_SOCKETCAN_ROOT." >&2
-            exit 2
+if [[ "$mk3_toolchain" == mk3-arm ]]; then
+    for mk3_path in "$MK3_CC" "$MK3_CXX" "$MK3_SYSROOT" "$MK3_BINUTILS_DIR"; do
+        [[ -e "$mk3_path" ]] || { echo "Missing MK3 prerequisite: $mk3_path" >&2; exit 2; }
+    done
+    read -r -a mk3_sdk_cflags <<< "${MK3_SDK_CFLAGS:-}"
+    mk3_cc_flags=(--sysroot="$MK3_SYSROOT" -B"$MK3_BINUTILS_DIR/" "${mk3_sdk_cflags[@]}")
+    if [[ "$mk3_profile" == star ]]; then
+        if [[ -z "${MK3_SOCKETCAN_ROOT:-}" ]]; then
+            if [[ -f "$MK3_SYSROOT/usr/include/libsocketcan.h" ]]; then
+                export MK3_SOCKETCAN_ROOT="$MK3_SYSROOT/usr"
+            else
+                echo "STAR build requires libsocketcan development headers and library; set MK3_SOCKETCAN_ROOT." >&2
+                exit 2
+            fi
         fi
+        [[ -f "$MK3_SOCKETCAN_ROOT/include/libsocketcan.h" && -e "$MK3_SOCKETCAN_ROOT/lib/libsocketcan.so" ]] || {
+            echo "Incomplete libsocketcan development files: $MK3_SOCKETCAN_ROOT" >&2
+            exit 2
+        }
     fi
-    [[ -f "$MK3_SOCKETCAN_ROOT/include/libsocketcan.h" && -e "$MK3_SOCKETCAN_ROOT/lib/libsocketcan.so" ]] || {
-        echo "Incomplete libsocketcan development files: $MK3_SOCKETCAN_ROOT" >&2
-        exit 2
-    }
+fi
+
+# hwlib's Linux UART driver sets the baud rate before assigning c_cflag, which leaves every port
+# at B0. Until that is fixed upstream, build hwlib from a patched copy that CFS_APP_PATH finds
+# ahead of fsw/apps/hwlib, so the submodule itself stays untouched. The copy sits as deep as
+# fsw/apps/hwlib, because hwlib's CMakeLists.txt includes ../../../components/ComponentSettings.cmake.
+if [[ "$mk3_profile" != base ]]; then
+    mk3_patched="$mk3_repo/fsw/build-mk3-patched"
+    rm -rf "$mk3_patched"
+    mkdir -p "$mk3_patched"
+    cp -a "$mk3_repo/fsw/apps/hwlib" "$mk3_patched/hwlib"
+    for mk3_patch in "$mk3_repo"/scripts/mk3/patches/hwlib/*.patch; do
+        patch -d "$mk3_patched/hwlib" -p1 --batch --forward --quiet < "$mk3_patch"
+    done
+    export CFS_APP_PATH="$mk3_patched:$CFS_APP_PATH"
 fi
 
 echo "MK3 compiler: $MK3_CC"
-echo "MK3 sysroot: $MK3_SYSROOT"
+echo "MK3 sysroot: ${MK3_SYSROOT:-none (Debian cross compiler)}"
 echo "MK3 profile: $mk3_profile"
+echo "MK3 toolchain: $mk3_toolchain"
 "$MK3_CC" -dumpmachine
 
 cmake -S "$mk3_repo/fsw/cfe" -B "$mk3_build" \
@@ -87,3 +110,8 @@ cmake -S "$mk3_repo/fsw/cfe" -B "$mk3_build" \
     -DCMAKE_INSTALL_PREFIX="$mk3_build/exe" \
     -DENABLE_UNIT_TESTS=OFF
 cmake --build "$mk3_build" --target mission-install --parallel "${MK3_JOBS:-4}"
+
+# sbtool sends commands to ci_lab and prints telemetry from to_lab on the board itself
+# (scripts/mk3/bench); package.sh ships it in bin/
+mkdir -p "$mk3_build/exe/bin"
+"$MK3_CC" "${mk3_cc_flags[@]}" -O2 -Wall -Wextra -o "$mk3_build/exe/bin/sbtool" "$mk3_repo/scripts/mk3/sbtool.c"

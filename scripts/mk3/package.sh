@@ -3,17 +3,23 @@ set -euo pipefail
 
 mk3_repo=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 mk3_profile=${MK3_PROFILE:-base}
+mk3_toolchain=${MK3_TOOLCHAIN:-mk3-arm}
+source "$mk3_repo/scripts/mk3/build-dir.sh"
+mk3_cpu="$mk3_build/exe/cpu1"
 case "$mk3_profile" in
-    base)
-        mk3_cpu="$mk3_repo/fsw/build-mk3-localq/exe/cpu1"
-        mk3_expected_modules=(ci_lab to_lab)
-        ;;
-    star)
-        mk3_cpu="$mk3_repo/fsw/build-mk3-star-localq/exe/cpu1"
-        mk3_expected_modules=(ci_lab to_lab hwlib generic_eps tmp100 thermal_control payload_if raspberry_pi mgr)
-        ;;
-    *) echo "MK3_PROFILE must be base or star" >&2; exit 2 ;;
+    base) mk3_expected_modules=(ci_lab to_lab) ;;
+    star) mk3_expected_modules=(ci_lab to_lab hwlib generic_eps tmp100 thermal_control payload_if raspberry_pi mgr) ;;
+    link) mk3_expected_modules=(ci_lab to_lab hwlib payload_if) ;;
 esac
+# Debian's cross toolchain keeps the target C library outside a sysroot, and its other target
+# libraries (libsocketcan) under the multiarch directory
+mk3_extra_libdir=/nonexistent
+mk3_strip=${MK3_STRIP:-}
+if [[ "$mk3_toolchain" == mk3-armhf ]]; then
+    MK3_SYSROOT=${MK3_SYSROOT:-/usr/arm-linux-gnueabihf}
+    mk3_extra_libdir=/usr/lib/arm-linux-gnueabihf
+    mk3_strip=${mk3_strip:-arm-linux-gnueabihf-strip}
+fi
 mk3_sysroot=${MK3_SYSROOT:-}
 [[ -d "$mk3_cpu/cf" && -f "$mk3_cpu/core-cpu1" ]] || {
     echo "MK3 install tree missing; run scripts/mk3/build.sh first" >&2; exit 2;
@@ -39,6 +45,7 @@ while IFS= read -r -d '' mk3_elf; do
     }
     while IFS= read -r mk3_library; do
         [[ -e "$mk3_sysroot/lib/$mk3_library" || -e "$mk3_sysroot/usr/lib/$mk3_library" ||
+           -e "$mk3_extra_libdir/$mk3_library" ||
            ( "$mk3_profile" == star && -e "${MK3_SOCKETCAN_ROOT:-/nonexistent}/lib/$mk3_library" ) ]] || {
             echo "Target library absent from sysroot: $mk3_library" >&2; exit 2;
         }
@@ -67,6 +74,15 @@ mk3_stage="$mk3_dist/$mk3_name"
 }
 mkdir -p "$mk3_stage"
 cp -a "$mk3_cpu" "$mk3_stage/cpu1"
+if [[ -d "$mk3_build/exe/bin" ]]; then
+    cp -a "$mk3_build/exe/bin" "$mk3_stage/bin"
+fi
+# Unstripped, the package is too big to copy over the board's debug console (about 2.5 KB/s);
+# the build tree keeps the symbols
+if [[ -n "$mk3_strip" ]]; then
+    find "$mk3_stage" -type f \( -name 'core-cpu1' -o -name '*.so' -o -name sbtool \) -exec "$mk3_strip" {} +
+fi
+mk3_startup=$(awk -F '[, ]+' '/^CFE_APP/ {printf "%s ", $2}' "$mk3_stage/cpu1/cf/cfe_es_startup.scr")
 
 {
     echo "package=$mk3_name"
@@ -76,14 +92,19 @@ cp -a "$mk3_cpu" "$mk3_stage/cpu1"
     echo "repository_tracked_diff_sha256=$(git -C "$mk3_repo" diff HEAD --binary | sha256sum | awk '{print $1}')"
     echo "target=nanomind-z7030-nv3"
     echo "image=GomSpace Linux 4.1.4 (langdale); board kernel 4.14.0-adi"
-    echo "toolchain=arm-gomspace-linux-gnueabi; Cortex-A9 hard-float NEON"
+    if [[ "$mk3_toolchain" == mk3-armhf ]]; then
+        echo "toolchain=mk3-armhf: Debian arm-linux-gnueabihf (scripts/mk3/Dockerfile); Cortex-A9 hard-float NEON"
+    else
+        echo "toolchain=mk3-arm: arm-gomspace-linux-gnueabi; Cortex-A9 hard-float NEON"
+    fi
+    echo "stripped=${mk3_strip:-no}"
     echo "sysroot=$mk3_sysroot"
     echo "dynamic_loader=$mk3_interpreter"
     echo "mission_defs=cfg/mk3_defs"
     echo "queue_backend=cfg/mk3_osal/posix process-local pthread queue"
     echo "working_directory=cpu1"
     echo "compiled_modules=${mk3_expected_modules[*]}"
-    echo "automatic_startup=ci_lab to_lab only"
+    echo "automatic_startup=${mk3_startup% }"
     echo "repository_status_begin"
     git -C "$mk3_repo" status --porcelain
     echo "repository_status_end"
@@ -102,17 +123,21 @@ cp -a "$mk3_cpu" "$mk3_stage/cpu1"
     echo "SPICEsat MK3 $mk3_profile ARM package"
     echo "Start only from cpu1, after verifying the archive and SHA256SUMS."
     echo "This build uses the MK3 process-local queue backend, not kernel POSIX mqueues."
-    echo "Base and STAR reached cFE OPERATIONAL on the original no-mqueue kernel in QEMU."
-    echo "Physical board execution is untested. Do not flash a QEMU-only kernel."
+    echo "What has been verified, in QEMU and on the board: docs/MK3_BRINGUP_RESULTS.md."
+    echo "Do not flash a QEMU-only kernel."
     if [[ "$mk3_profile" == star ]]; then
         echo "STAR modules are compiled and included but NOT auto-started."
         echo "EPS, TMP100, thermal control, and payload_if need real hardware validation."
         echo "raspberry_pi.so is legacy reference code, not the separate PayOBC service."
     fi
+    if [[ "$mk3_profile" == link ]]; then
+        echo "payload_if starts on /dev/ttyS3 (J14). Start cFS only once pl-rs422.service is active."
+        echo "bin/sbtool and scripts/mk3/bench drive it from the board's shell or from OpenC3."
+    fi
 } > "$mk3_stage/README.txt"
 (
     cd "$mk3_stage"
-    find cpu1 -type f -print0 | sort -z | xargs -0 sha256sum
+    find cpu1 $([[ -d bin ]] && echo bin) -type f -print0 | sort -z | xargs -0 sha256sum
     sha256sum MANIFEST.txt
     sha256sum README.txt
 ) > "$mk3_stage/SHA256SUMS"

@@ -10,10 +10,7 @@ __pycache__
 # Build Files
 #
 build
-fsw/build-mk3/
-fsw/build-mk3-star/
-fsw/build-mk3-localq/
-fsw/build-mk3-star-localq/
+fsw/build-mk3*/
 dist/mk3/
 *.gcov
 *.o
