@@ -1,0 +1,382 @@
+#!/usr/bin/env python3
+"""Connect OpenC3 on this laptop to cFS on the busOBC (SDR MK3) through its debug console (J1).
+
+    OpenC3 --UDP 5012--> sdr-link --console--> sbtool bridge --> CI_LAB --> payload_if --> J14 --> Pi
+    OpenC3 <--UDP 5013-- sdr-link <--console-- sbtool bridge <-- TO_LAB <-- payload_if <-- J14 <-- Pi
+
+It logs in if needed, starts cFS, opens the tunnel and prints every packet. Ctrl-C closes the
+tunnel and gives the console back; cFS keeps running. It needs the console to itself, so close
+any other program using the cable first.
+
+The bench build has no scheduler app, so nothing asks for housekeeping. This asks payload_if
+every --hk-period seconds and cFE every --cfe-period seconds, so that OpenC3 shows live values.
+
+It also watches the link, because the flight software can't: RS-422 has no acknowledgment, so
+payload_if counts a command as good once it is written to the port, whether or not the Pi is
+there. Every second this sends OpenC3 a GROUND LINK_MONITOR packet: the link state, and how many
+commands to the Pi got no reply. This is ground detection, computed on the laptop.
+"""
+import argparse
+import glob
+import os
+import select
+import signal
+import socket
+import struct
+import subprocess
+import sys
+import termios
+import time
+
+PAYLOAD_IF_CMD_MID = 0x1850
+HK_REQUEST_MID = 0x1851
+PAYLOAD_IF_HK_MID = 0x0860
+PAYOBC_WRAPPER_MID = 0x0862
+EVENT_MID = 0x0808
+TLM_HDR_LEN = 16
+CFE_HK_REQUEST_MIDS = (0x1808, 0x1809, 0x180B, 0x180C, 0x180D)
+SB_CMD_MID = 0x1803
+SB_SEND_STATS_CC = 2
+MONITOR_MID = 0x08F0
+FAULT_MID = 0x18F0
+FAULTS = {1: "bad-crc", 2: "bad-length", 3: "bad-packet", 4: "bad-apid", 5: "garbage"}
+STALE_AFTER = 3.0
+LOST_AFTER = 10.0
+REPLY_TIMEOUT = 3.0
+LINK_UP, LINK_STALE, LINK_LOST, LINK_WAITING = range(4)
+OPCODES = {0x01: "grant DCE", 0x02: "revoke DCE", 0x03: "time sync ping", 0x20: "run experiment",
+           0x21: "abort experiment", 0xFF: "emergency halt"}
+OP_STATES = {0x00: "idle", 0x01: "experiment running", 0xFF: "fault"}
+ADCS_REQUESTS = {0x01: "target orientation", 0x02: "target spin rate", 0xA0: "request authority",
+                 0xA1: "relinquish authority"}
+BULK_TO_GROUND = {0x030: "calculation data", 0x031: "force-torque data", 0x032: "video"}
+ROUTES_TO_PI = {0x020: "attitude data", 0x022: "attitude response", 0x033: "experiment table",
+                0x034: "control algorithm", 0x035: "bulk transfer response"}
+
+
+class LinkMonitor:
+    """Link health, worked out from the packets this program carries."""
+
+    def __init__(self):
+        self.started = time.time()
+        self.last_pi = None
+        self.state = LINK_WAITING
+        self.pending = []
+        self.sequence = 0
+        self.last_fault = ""
+        self.reset()
+
+    def reset(self):
+        self.pi_packets = self.commands = self.replies = self.unanswered = self.losses = 0
+        self.pending = []
+        self.last_fault = ""
+
+    def fault(self, text):
+        self.last_fault = "%s %s" % (time.strftime("%H:%M:%S"), text)
+        print("%s FAULT %s" % (time.strftime("%H:%M:%S"), text), flush=True)
+
+    def command_sent(self, opcode):
+        self.commands += 1
+        self.pending.append((opcode, time.time()))
+
+    def packet_from_pi(self, apid, data):
+        now = time.time()
+        if self.last_pi is not None and self.state in (LINK_STALE, LINK_LOST):
+            self.fault("Link restored after %.0f s" % (now - self.last_pi))
+        self.last_pi = now
+        self.state = LINK_UP
+        self.pi_packets += 1
+        if apid == 0x012 and data:
+            self.replies += 1
+            for entry in self.pending:
+                if entry[0] == data[0]:
+                    self.pending.remove(entry)
+                    break
+
+    def tick(self):
+        now = time.time()
+        for opcode, sent in [entry for entry in self.pending if now - entry[1] > REPLY_TIMEOUT]:
+            self.pending.remove((opcode, sent))
+            self.unanswered += 1
+            self.fault("No reply to %s (opcode 0x%02X) within %.0f s" % (OPCODES.get(opcode, "command"), opcode, REPLY_TIMEOUT))
+        if self.last_pi is None:
+            return
+        age = now - self.last_pi
+        if age > LOST_AFTER and self.state != LINK_LOST:
+            self.state = LINK_LOST
+            self.losses += 1
+            self.fault("Link LOST: no packets from the Pi for %.0f s" % LOST_AFTER)
+        elif STALE_AFTER < age <= LOST_AFTER and self.state == LINK_UP:
+            self.state = LINK_STALE
+            self.fault("Link stale: no packets from the Pi for %.0f s" % STALE_AFTER)
+
+    def packet(self):
+        self.sequence = (self.sequence + 1) & 0x3FFF
+        age = time.time() - (self.last_pi if self.last_pi is not None else self.started)
+        body = struct.pack(">BfIIIII80s", self.state, age, self.pi_packets, self.commands, self.replies,
+                           self.unanswered, self.losses, self.last_fault.encode()[:80])
+        return struct.pack(">HHH", MONITOR_MID, 0xC000 | self.sequence, len(body) - 1) + body
+
+
+def default_console():
+    found = sorted(glob.glob("/dev/serial/by-id/usb-FTDI_*"))
+    return found[0] if found else "/dev/ttyUSB0"
+
+
+def open_console(path):
+    fd = os.open(path, os.O_RDWR | os.O_NOCTTY)
+    attrs = termios.tcgetattr(fd)
+    cc = attrs[6]
+    cc[termios.VMIN] = 0
+    cc[termios.VTIME] = 0
+    termios.tcsetattr(fd, termios.TCSANOW, [0, 0, termios.CS8 | termios.CREAD | termios.CLOCAL, 0,
+                                            termios.B115200, termios.B115200, cc])
+    termios.tcflush(fd, termios.TCIOFLUSH)
+    return fd
+
+
+def drain(fd, seconds):
+    buf = b""
+    deadline = time.time() + seconds
+    while True:
+        left = deadline - time.time()
+        if left <= 0:
+            return buf
+        if select.select([fd], [], [], min(left, 0.05))[0]:
+            buf += os.read(fd, 4096)
+
+
+def read_until(fd, needle, timeout):
+    buf = b""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        buf += drain(fd, 0.1)
+        if needle in buf:
+            return buf, True
+    return buf, False
+
+
+def last_line(buf):
+    lines = buf.decode(errors="replace").replace("\r", "").strip().splitlines()
+    return lines[-1] if lines else ""
+
+
+def get_shell(fd):
+    """Get to a shell prompt from whatever state the console was left in."""
+    os.write(fd, b"quit\n")  # ends a tunnel left over from a run that crashed
+    drain(fd, 0.5)
+    os.write(fd, b"\r")
+    line = last_line(drain(fd, 2.5))
+    if line.endswith("login:"):
+        os.write(fd, b"root\r")
+        line = last_line(drain(fd, 3.0))
+    if not line.endswith(("#", "$")):
+        sys.exit("No shell prompt on the console (last line: %r). Is the board booted and the cable on J1?" % line)
+
+
+def run(fd, command, timeout):
+    start, end = "__S_%d__" % time.time(), "__E_%d__" % time.time()
+    # The quotes keep the markers out of the echoed command line
+    os.write(fd, ('echo %s""%s; %s; echo %s""%s\r' % (start[:2], start[2:], command, end[:2], end[2:])).encode())
+    buf, ok = read_until(fd, end.encode(), timeout)
+    text = buf.decode(errors="replace").replace("\r", "")
+    if not ok or start not in text:
+        sys.exit("Console command timed out: %s\n%s" % (command, text))
+    return text.split(start, 1)[1].split(end, 1)[0].strip()
+
+
+def command_packet(mid, cc=0):
+    pkt = bytearray(struct.pack(">HHHBB", mid, 0xC000, 1, cc, 0))
+    sum_ = 0xFF
+    for byte in pkt:
+        sum_ ^= byte
+    pkt[7] = sum_
+    return bytes(pkt)
+
+
+def complete_packet(pkt):
+    return len(pkt) >= 7 and struct.unpack(">H", pkt[4:6])[0] + 7 == len(pkt)
+
+
+def describe_command(pkt):
+    mid, cc = struct.unpack(">H", pkt[:2])[0], pkt[6] & 0x7F
+    if mid == 0x1850 and cc == 6 and len(pkt) >= 14 and struct.unpack(">H", pkt[8:10])[0] & 0x07FF != 0x010:
+        apid = struct.unpack(">H", pkt[8:10])[0] & 0x07FF
+        return "to Pi: %s (APID 0x%03X), %d data bytes" % (ROUTES_TO_PI.get(apid, "not allowed"), apid, len(pkt) - 14)
+    if mid == 0x1850 and cc == 6 and len(pkt) >= 15:
+        opcode = pkt[14]
+        arg = struct.unpack(">I", pkt[15:19])[0] if len(pkt) >= 19 else 0
+        return "to Pi: %s (opcode 0x%02X) argument %d" % (OPCODES.get(opcode, "unknown"), opcode, arg)
+    return "to cFS: MID 0x%04X code %d" % (mid, cc)
+
+
+def describe_telemetry(pkt):
+    mid = struct.unpack(">H", pkt[:2])[0]
+    if mid == PAYOBC_WRAPPER_MID and len(pkt) >= TLM_HDR_LEN + 7:
+        apid = struct.unpack(">H", pkt[TLM_HDR_LEN:TLM_HDR_LEN + 2])[0] & 0x07FF
+        data = pkt[TLM_HDR_LEN + 6:]
+        if apid == 0x011 and len(data) >= 18:
+            met, state, experiment, temp, storage = struct.unpack(">QBBfI", data[:18])
+            return "from Pi: heartbeat MET %d ms, %s, experiment %d" % (met, OP_STATES.get(state, hex(state)), experiment)
+        if apid == 0x012 and len(data) >= 2:
+            return "from Pi: %s to %s (opcode 0x%02X)" % ("ACK" if data[1] == 0 else "NACK",
+                                                          OPCODES.get(data[0], "unknown"), data[0])
+        if apid == 0x021 and data:
+            return "from Pi: attitude request, %s" % ADCS_REQUESTS.get(data[0], hex(data[0]))
+        if apid in BULK_TO_GROUND and len(data) >= 12:
+            transfer, chunk, total = struct.unpack(">III", data[:12])
+            return "from Pi: %s, transfer %d, chunk %d of %d" % (BULK_TO_GROUND[apid], transfer, chunk + 1, total)
+        if apid == 0x035 and len(data) >= 5:
+            return "from Pi: %s to transfer %d" % ("ACK" if data[4] == 0 else "NACK", struct.unpack(">I", data[:4])[0])
+        return "from Pi: APID 0x%03X, %d data bytes" % (apid, len(data))
+    if mid == EVENT_MID and len(pkt) > TLM_HDR_LEN + 32:
+        app = pkt[TLM_HDR_LEN:TLM_HDR_LEN + 20].split(b"\0")[0].decode(errors="replace")
+        text = pkt[TLM_HDR_LEN + 32:TLM_HDR_LEN + 154].split(b"\0")[0].decode(errors="replace")
+        return "cFS event %s: %s" % (app, text)
+    return None
+
+
+def expects_reply(pkt):
+    """True for a well-formed forwarded command on the Pi's command APID: it gets one reply."""
+    if struct.unpack(">H", pkt[:2])[0] != 0x1850 or pkt[6] & 0x7F != 6 or len(pkt) < 15:
+        return False
+    inner = pkt[8:]
+    return struct.unpack(">H", inner[:2])[0] & 0x07FF == 0x010 and complete_packet(inner)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--console", default=os.environ.get("SDR_CONSOLE", default_console()))
+    parser.add_argument("--cmd-port", type=int, default=5012, help="UDP port OpenC3 sends commands to")
+    parser.add_argument("--tlm-port", type=int, default=5013, help="UDP port OpenC3 receives telemetry on")
+    parser.add_argument("--tlm-host", default="127.0.0.1")
+    parser.add_argument("--hk-period", type=float, default=2.0, help="seconds between payload_if housekeeping requests, 0 for none")
+    parser.add_argument("--cfe-period", type=float, default=5.0, help="seconds between cFE housekeeping requests, 0 for none")
+    args = parser.parse_args()
+
+    if not os.path.exists(args.console):
+        sys.exit("No SDR console cable found at %s. Is the FTDI USB cable plugged into this laptop?" % args.console)
+
+    stop = []
+    signal.signal(signal.SIGINT, lambda *_: stop.append(1))
+    signal.signal(signal.SIGTERM, lambda *_: stop.append(1))
+
+    fd = open_console(args.console)
+    print("Console %s: looking for a shell" % args.console, flush=True)
+    get_shell(fd)
+    print(run(fd, ". /data/star/bench.sh && mon_stop && status", 15))
+    started = run(fd, "cfs_start; echo cfs_start=$?", 40)
+    print(started)
+    if "cfs_start=0" not in started:
+        sys.exit("cFS did not start. Read the message above, or /data/star-test/cfs.log on the board.")
+    run(fd, '"$SBTOOL" to-enable > /dev/null', 10)
+
+    os.write(fd, b'"$SBTOOL" bridge\r')
+    banner, ok = read_until(fd, b"BRIDGE READY", 5)
+    if not ok:
+        sys.exit("The board's sbtool did not open the tunnel. Deploy a new package with sdr-deploy.\n%s"
+                 % banner.decode(errors="replace"))
+
+    cmd_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    cmd_sock.bind(("0.0.0.0", args.cmd_port))
+    tlm_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    print("Tunnel open. OpenC3 commands on UDP %d, telemetry to %s:%d. Ctrl-C to close."
+          % (args.cmd_port, args.tlm_host, args.tlm_port), flush=True)
+
+    # A real command and its event, so OpenC3 shows the busOBC answering from the first moment
+    os.write(fd, b"TC " + command_packet(PAYLOAD_IF_CMD_MID).hex().encode() + b"\n")
+
+    pending = b""
+    last_tlm = time.time()
+    last_warning = 0.0
+    next_hk = time.time()
+    next_cfe = time.time() + 1
+    next_monitor = time.time()
+    last_hk = None
+    monitor = LinkMonitor()
+    injectors = []
+    link_fault = os.path.join(os.path.dirname(os.path.realpath(__file__)), "link-fault")
+    while not stop:
+        now = time.time()
+        if args.hk_period and now >= next_hk:
+            os.write(fd, b"TC " + command_packet(HK_REQUEST_MID).hex().encode() + b"\n")
+            next_hk = now + args.hk_period
+        if args.cfe_period and now >= next_cfe:
+            for mid in CFE_HK_REQUEST_MIDS:
+                os.write(fd, b"TC " + command_packet(mid).hex().encode() + b"\n")
+            os.write(fd, b"TC " + command_packet(SB_CMD_MID, SB_SEND_STATS_CC).hex().encode() + b"\n")
+            next_cfe = now + args.cfe_period
+        if now >= next_monitor:
+            monitor.tick()
+            tlm_sock.sendto(monitor.packet(), (args.tlm_host, args.tlm_port))
+            injectors = [p for p in injectors if p.poll() is None]
+            next_monitor = now + 1
+        if now - last_tlm > 10 and now - last_warning > 10:
+            print("%s WARNING no telemetry from the board for %d s" % (time.strftime("%H:%M:%S"), now - last_tlm), flush=True)
+            last_warning = now
+
+        try:
+            ready = select.select([fd, cmd_sock], [], [], 0.2)[0]
+        except InterruptedError:
+            continue
+
+        if cmd_sock in ready:
+            pkt = cmd_sock.recv(2048)
+            if complete_packet(pkt) and struct.unpack(">H", pkt[:2])[0] == FAULT_MID:
+                name = FAULTS.get(pkt[6] & 0x7F)
+                print("%s INJECT %s, from the Pi" % (time.strftime("%H:%M:%S"), name), flush=True)
+                if name:
+                    injectors.append(subprocess.Popen([link_fault, name]))
+            elif complete_packet(pkt):
+                os.write(fd, b"TC " + pkt.hex().encode() + b"\n")
+                print("%s CMD %s" % (time.strftime("%H:%M:%S"), describe_command(pkt)), flush=True)
+                if expects_reply(pkt):
+                    monitor.command_sent(pkt[14])
+                elif pkt[:2] == b"\x18\x50" and pkt[6] & 0x7F == 1:
+                    monitor.reset()
+            else:
+                print("%s dropped a malformed %d byte command from OpenC3" % (time.strftime("%H:%M:%S"), len(pkt)), flush=True)
+
+        if fd in ready:
+            pending += os.read(fd, 4096)
+            *lines, pending = pending.split(b"\n")
+            for raw in lines:
+                line = raw.strip()
+                if line.startswith(b"TM "):
+                    try:
+                        pkt = bytes.fromhex(line[3:].decode())
+                    except ValueError:
+                        continue
+                    if not complete_packet(pkt):
+                        continue
+                    tlm_sock.sendto(pkt, (args.tlm_host, args.tlm_port))
+                    last_tlm = time.time()
+                    if struct.unpack(">H", pkt[:2])[0] == PAYLOAD_IF_HK_MID:
+                        counters = pkt[TLM_HDR_LEN:TLM_HDR_LEN + 5]
+                        if counters != last_hk:
+                            print("%s TLM busOBC: cmd_err %d, cmd %d, frame_err %d, frames %d, link %s"
+                                  % (time.strftime("%H:%M:%S"), counters[0], counters[1], counters[2], counters[3],
+                                     "enabled" if counters[4] else "DISABLED"), flush=True)
+                            last_hk = counters
+                        continue
+                    if struct.unpack(">H", pkt[:2])[0] == PAYOBC_WRAPPER_MID and len(pkt) >= TLM_HDR_LEN + 6:
+                        monitor.packet_from_pi(struct.unpack(">H", pkt[TLM_HDR_LEN:TLM_HDR_LEN + 2])[0] & 0x07FF,
+                                               pkt[TLM_HDR_LEN + 6:])
+                    text = describe_telemetry(pkt)
+                    if text:
+                        print("%s TLM %s" % (time.strftime("%H:%M:%S"), text), flush=True)
+                elif line:
+                    print("%s console: %s" % (time.strftime("%H:%M:%S"), line.decode(errors="replace")), flush=True)
+
+    print("\nClosing the tunnel; cFS keeps running on the board.")
+    os.write(fd, b"quit\n")
+    read_until(fd, b"BRIDGE STOPPED", 3)
+    os.close(fd)
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except OSError as err:
+        sys.exit("\nLost the SDR console: %s\nIf /dev/ttyUSB0 is gone, the debug cable dropped off USB. Power cycle the SDR "
+                 "if it doesn't come back by itself, then run sdr-link again." % err)

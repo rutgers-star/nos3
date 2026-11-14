@@ -1,0 +1,25 @@
+#!/bin/sh
+#
+# Open the busOBC (SDR MK3) debug console from the bench Pi.
+#
+# Everyone who runs this joins the same screen session, so several people can watch
+# and type on one console at once.
+#   Leave it running and go back to the Pi:   Ctrl-a then d
+#   Close it for everyone (sdr-deploy does this itself):   Ctrl-a then k, then y
+#
+SESSION=sdr
+
+# The FTDI cable from the SDR's J1 debug port; SDR_CONSOLE overrides it
+DEV=${SDR_CONSOLE:-$(ls /dev/serial/by-id/usb-FTDI_* 2>/dev/null | head -n 1)}
+DEV=${DEV:-/dev/ttyUSB0}
+if [ ! -e "$DEV" ]; then
+    echo "No SDR console cable found. Is the FTDI USB cable plugged into this Pi?" >&2
+    exit 1
+fi
+
+if screen -ls | grep -q "[0-9]\.$SESSION[[:space:]]"; then
+    exec screen -x "$SESSION"
+fi
+echo "Opening the SDR console on $DEV. Press Enter to get the root@nanomind prompt."
+sleep 1
+exec screen -S "$SESSION" "$DEV" 115200,cs8,-ixon,-ixoff,-istrip

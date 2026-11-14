@@ -1,0 +1,61 @@
+#!/bin/sh
+#
+# Copy a file to the busOBC (SDR MK3) over its debug console, from the bench Pi.
+#   sdr-deploy spicesat-mk3-<profile>-...tar.gz   unpack a cFS package into /data/star/<name>/ and check it
+#   sdr-deploy bench.sh                          install the console helpers as /data/star/bench.sh
+#
+# It runs at about 2.5 KB/s (a 200 KB package takes about 80 s) and needs the console
+# to itself, so it closes the shared `sdr` screen session first.
+#
+HERE=$(dirname "$(readlink -f "$0")")
+DATA=${SDR_DATA:-/data}
+FILE=$1
+if [ ! -f "$FILE" ]; then
+    echo "usage: sdr-deploy FILE   (a spicesat-mk3-*.tar.gz package from make fsw-mk3-package, or bench.sh)" >&2
+    exit 2
+fi
+
+DEV=${SDR_CONSOLE:-$(ls /dev/serial/by-id/usb-FTDI_* 2>/dev/null | head -n 1)}
+DEV=${DEV:-/dev/ttyUSB0}
+if [ ! -e "$DEV" ]; then
+    echo "No SDR console cable found. Is the FTDI USB cable plugged into this Pi?" >&2
+    exit 1
+fi
+if screen -ls 2>/dev/null | grep -q "[0-9]\.sdr[[:space:]]"; then
+    echo "Closing the shared sdr console session (it would garble the transfer)"
+    screen -S sdr -X quit
+    sleep 1
+fi
+
+NAME=$(basename "$FILE")
+WORK=$(mktemp -d)
+case "$NAME" in
+    spicesat-mk3-*.tar.gz)
+        PKG=${NAME%.tar.gz}
+        REMOTE=$DATA/star-test/$NAME
+        DEST=$DATA/star/$PKG
+        printf 'unpack\t60\tmkdir -p %s && tar -xzf %s -C %s && cd %s && sha256sum -c SHA256SUMS; cd /\n' \
+            "$DATA/star/$PKG" "$REMOTE" "$DATA/star/$PKG" "$DATA/star/$PKG" > "$WORK/cmds.tsv"
+        ;;
+    *)
+        REMOTE=$DATA/star/$NAME
+        DEST=$REMOTE
+        printf 'check\t15\tls -l %s\n' "$REMOTE" > "$WORK/cmds.tsv"
+        ;;
+esac
+
+python3 "$HERE/push_and_run.py" "$DEV" "$FILE" "$REMOTE" "$WORK/console.log" "$WORK/result.txt" "$WORK/cmds.tsv"
+STATUS=$?
+echo
+sed -n '/=== sha256/,$p' "$WORK/result.txt"
+# A package that arrives intact but fails its own checksums is still a failure
+if [ $STATUS -eq 0 ] && grep -q 'FAILED' "$WORK/result.txt"; then
+    STATUS=5
+fi
+if [ $STATUS -eq 0 ]; then
+    rm -rf "$WORK"
+    echo "Done: $DEST"
+else
+    echo "FAILED (exit $STATUS). Console transcript: $WORK/console.log" >&2
+fi
+exit $STATUS

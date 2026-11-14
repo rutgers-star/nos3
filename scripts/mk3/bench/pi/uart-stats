@@ -1,0 +1,24 @@
+#!/bin/sh
+#
+# Byte and error counters for the bench Pi's link UART (/dev/ttyS0, the RS-422 HAT).
+# Safe while daemond runs: it reads the counters, never the data.
+# rx only counts while some program (daemond, uart-watch) has the port open.
+#
+UART=${UART:-/dev/ttyS0} exec python3 - << 'EOF'
+import fcntl, os, struct
+
+uart = os.environ["UART"]
+fd = os.open(uart, os.O_RDONLY | os.O_NOCTTY | os.O_NONBLOCK)
+c = struct.unpack("15i", fcntl.ioctl(fd, 0x545D, bytes(80))[:60])  # TIOCGICOUNT
+os.close(fd)
+print("%s  rx=%d  tx=%d  frame_err=%d  overrun=%d  parity=%d  break=%d" % (uart, c[4], c[5], c[6], c[7], c[8], c[9]))
+
+holders = []
+for pid in filter(str.isdigit, os.listdir("/proc")):
+    try:
+        if any(os.readlink("/proc/%s/fd/%s" % (pid, f)) == uart for f in os.listdir("/proc/%s/fd" % pid)):
+            holders.append("%s (pid %s)" % (open("/proc/%s/comm" % pid).read().strip(), pid))
+    except OSError:
+        pass
+print("open by: " + (", ".join(holders) or "nobody, so rx is not counting"))
+EOF
