@@ -28,10 +28,13 @@ cFS package: $STAR_PKG
 EOF
 }
 
+# The package the running cFS was started from
+_cfs_pkg() { readlink "/proc/$(pidof core-cpu1)/cwd" | sed 's,/cpu1$,,'; }
+
 status() {
     echo "J14 (pl-rs422):   $(systemctl is-active pl-rs422)"
     if pidof core-cpu1 > /dev/null; then
-        echo "cFS:              running, pid $(pidof core-cpu1)"
+        echo "cFS:              running, pid $(pidof core-cpu1), from $(_cfs_pkg)"
     else
         echo "cFS:              stopped"
     fi
@@ -45,13 +48,19 @@ status() {
 
 cfs_start() {
     if pidof core-cpu1 > /dev/null; then
-        echo "cFS is already running (pid $(pidof core-cpu1))"
+        echo "cFS is already running (pid $(pidof core-cpu1)) from $(_cfs_pkg)"
+        # Carrying on would test an older build than the one just deployed
+        if [ "$(_cfs_pkg)" != "$STAR_PKG" ]; then
+            echo "That is not the newest package, $STAR_PKG. Run cfs_stop, then cfs_start."
+            return 1
+        fi
         return 0
     fi
     if [ ! -e /dev/ttyS3 ] || [ "$(systemctl is-active pl-rs422)" != active ]; then
         echo "J14 is not available (pl-rs422 is not active). See the bench guide, J14 section."
         return 1
     fi
+    echo "cFS package: $STAR_PKG"
     (cd "$STAR_PKG/cpu1" && exec ./core-cpu1 -R PO > "$CFS_LOG" 2>&1) &
     local i=0
     while ! grep -q 'entering OPERATIONAL' "$CFS_LOG" 2> /dev/null; do

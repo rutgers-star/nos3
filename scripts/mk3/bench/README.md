@@ -14,6 +14,7 @@ For the payload link on the bench: the busOBC (NanoCom SDR MK3) on J14, RS-422 t
 With the FTDI cable on the laptop, the SDR booted and `daemond` running on the Pi:
 
 ```sh
+make fsw-mk3 MK3_PROFILE=link
 make fsw-mk3-package MK3_PROFILE=link
 scripts/mk3/bench/pi/sdr-deploy dist/mk3/spicesat-mk3-link-localq-<commit>-<time>.tar.gz
 scripts/mk3/bench/pi/sdr-deploy scripts/mk3/bench/sdr/bench.sh
