@@ -8,10 +8,11 @@
 
 | Send or exercise | Expected result |
 | --- | --- |
-| `MGR_SET_MODE` with `IDLE`, `SCIENCE`, `SCIENCE_REBOOT`, and the other Safe state | The mode stays at the exact starting value. Each blocked change reports a rejection. |
+| `MGR_SET_MODE` with `IDLE`, `SCIENCE`, `SCIENCE_REBOOT`, and the other Safe state | The mode stays at the exact starting value. Each blocked change emits MGR event 14. |
 | The MGR commands used by onboard RTSs (`SET_MODE SCIENCE` from RTS 025, `UPDATE_SCI_STATUS`, and `SCI_PASS_INC`) | The mode stays latched. Inject the same command packets from EGSE because the MK3 `link` profile does not start LC or SC. |
-| An invalid mode, unknown command code, and `EXIT_SAFE` with an extra payload byte | The mode stays latched. Capture the error event and counter. |
-| Operator sends `BUSOBC MGR_EXIT_SAFE` once with no payload | `MGR_HK` changes to `IDLE` and MGR emits an exit acceptance event. A repeat outside Safe is rejected and leaves `IDLE`. |
+| An invalid mode, unknown command code, and `EXIT_SAFE` with an extra payload byte | The mode stays latched. Capture MGR events 14, 10, and 2 respectively and the error counter. |
+| Restart cFS from the same extracted package while latched | An intact saved record restores the starting Safe state. Record housekeeping after restart. |
+| Operator sends `BUSOBC MGR_EXIT_SAFE` once with no payload | `MGR_HK` changes to `IDLE` and MGR emits event 26. A repeat outside Safe emits event 27 and leaves `IDLE`. |
 
 Use a separate board shell for raw commands while the OpenC3 tunnel owns the serial console. With `$SBTOOL` set to the verified package's `bin/sbtool`, examples are `$SBTOOL cmd 0x18F8 9 01` (science status), `$SBTOOL cmd 0x18F8 4` (science pass), `$SBTOOL cmd 0x18F8 2 FF` (invalid mode), `$SBTOOL cmd 0x18F8 127` (unknown command), and `$SBTOOL cmd 0x18F8 10 00` (malformed exit). Send the valid exit explicitly from the operator console after the hold checks.
 

@@ -10,6 +10,7 @@
 ** Include Files
 */
 #include <arpa/inet.h>
+#include <stddef.h>
 #include "mgr_app.h"
 
 /*
@@ -573,22 +574,24 @@ void MGR_SaveHkFile(void)
 */
 void MGR_RestoreHkFile(void)
 {
+    const size_t payload_offset = offsetof(MGR_Hk_tlm_t, CommandErrorCount);
+    MGR_Hk_tlm_t saved;
     osal_id_t osal_fd;
-    int32     size_read = 0;
 
-    if (OS_OpenCreate(&osal_fd, MGR_CFG_FILE_PATH, OS_FILE_FLAG_NONE, OS_READ_ONLY) == OS_SUCCESS)
-    {
-        size_read = OS_TimedRead(osal_fd, &MGR_AppData.HkTelemetryPkt, sizeof(MGR_Hk_tlm_t), 500);
-        OS_close(osal_fd);
-    }
-    if (size_read != sizeof(MGR_Hk_tlm_t))
-    {
-        memset(&MGR_AppData.HkTelemetryPkt, 0, sizeof(MGR_Hk_tlm_t));
-    }
-
-    /* Always reinitialize the telemetry message header after restoring data. */
+    /* cFE initializes the whole packet. Keep the new header and restore only
+     * data from a complete saved packet. */
     CFE_MSG_Init(CFE_MSG_PTR(MGR_AppData.HkTelemetryPkt.TlmHeader), CFE_SB_ValueToMsgId(MGR_HK_TLM_MID),
                  MGR_HK_TLM_LNGTH);
+    if (OS_OpenCreate(&osal_fd, MGR_CFG_FILE_PATH, OS_FILE_FLAG_NONE, OS_READ_ONLY) == OS_SUCCESS)
+    {
+        int32 size_read = OS_TimedRead(osal_fd, &saved, sizeof(saved), 500);
+        OS_close(osal_fd);
+        if (size_read == sizeof(saved))
+        {
+            memcpy((uint8 *)&MGR_AppData.HkTelemetryPkt + payload_offset, (const uint8 *)&saved + payload_offset,
+                   sizeof(saved) - payload_offset);
+        }
+    }
 
     if (MGR_AppData.HkTelemetryPkt.SpacecraftMode == MGR_SAFE_REBOOT_MODE)
     {

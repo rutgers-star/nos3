@@ -491,13 +491,27 @@ void Test_MGR_SafeModeLatch(void)
     UtAssert_UINT8_EQ(MGR_AppData.HkTelemetryPkt.SpacecraftMode, MGR_SCIENCE_MODE);
 }
 
+static int32 ClearPacketOnInit(void *UserObj, int32 StubRetcode, uint32 CallCount, const UT_StubContext_t *Context)
+{
+    CFE_MSG_Message_t *MsgPtr = UT_Hook_GetArgValueByName(Context, "MsgPtr", CFE_MSG_Message_t *);
+    CFE_MSG_Size_t Size = UT_Hook_GetArgValueByName(Context, "Size", CFE_MSG_Size_t);
+
+    /* The real CFE_MSG_Init clears the entire packet, including its payload. */
+    memset(MsgPtr, 0, Size);
+    return StubRetcode;
+}
+
 void Test_MGR_RestoreSafeModeLatch(void)
 {
-    MGR_Hk_tlm_t Saved = {.SpacecraftMode = MGR_SAFE_MODE};
+    MGR_Hk_tlm_t Saved = {.SpacecraftMode = MGR_SAFE_MODE, .BootCounter = 7, .SciPassCount = 42};
+
+    UT_SetHookFunction(UT_KEY(CFE_MSG_Init), ClearPacketOnInit, NULL);
 
     UT_SetDataBuffer(UT_KEY(OS_TimedRead), &Saved, sizeof(Saved), false);
     MGR_RestoreHkFile();
     UtAssert_UINT8_EQ(MGR_AppData.HkTelemetryPkt.SpacecraftMode, MGR_SAFE_MODE);
+    UtAssert_UINT16_EQ(MGR_AppData.HkTelemetryPkt.BootCounter, 7);
+    UtAssert_UINT16_EQ(MGR_AppData.HkTelemetryPkt.SciPassCount, 42);
     SendModeTestCommand(MGR_CMD_MID, MGR_SET_MODE_CC, sizeof(MGR_U8_cmd_t), MGR_SCIENCE_MODE, MGR_CMD_SETMODE_ERR_EID);
     UtAssert_UINT8_EQ(MGR_AppData.HkTelemetryPkt.SpacecraftMode, MGR_SAFE_MODE);
 
@@ -508,6 +522,7 @@ void Test_MGR_RestoreSafeModeLatch(void)
     UT_SetDataBuffer(UT_KEY(OS_TimedRead), &Saved, sizeof(Saved), false);
     MGR_RestoreHkFile();
     UtAssert_UINT8_EQ(MGR_AppData.HkTelemetryPkt.SpacecraftMode, MGR_SAFE_REBOOT_MODE);
+    UtAssert_UINT16_EQ(MGR_AppData.HkTelemetryPkt.BootCounter, 8);
     SendModeTestCommand(MGR_CMD_MID, MGR_SET_MODE_CC, sizeof(MGR_U8_cmd_t), MGR_SCIENCE_MODE, MGR_CMD_SETMODE_ERR_EID);
     UtAssert_UINT8_EQ(MGR_AppData.HkTelemetryPkt.SpacecraftMode, MGR_SAFE_REBOOT_MODE);
 
@@ -519,12 +534,14 @@ void Test_MGR_RestoreSafeModeLatch(void)
     UT_SetDataBuffer(UT_KEY(OS_TimedRead), &Saved, sizeof(Saved) - 1, false);
     MGR_RestoreHkFile();
     UtAssert_UINT8_EQ(MGR_AppData.HkTelemetryPkt.SpacecraftMode, MGR_SAFE_REBOOT_MODE);
+    UtAssert_UINT16_EQ(MGR_AppData.HkTelemetryPkt.SciPassCount, 0);
 }
 
 void Test_MGR_SaveSafeModeFailure(void)
 {
     MGR_Hk_tlm_t StaleSnapshot = {.SpacecraftMode = MGR_SCIENCE_REBOOT_MODE};
 
+    UT_SetHookFunction(UT_KEY(CFE_MSG_Init), ClearPacketOnInit, NULL);
     /* A failed save entering SAFE leaves the preceding SCIENCE_REBOOT snapshot. */
     MGR_AppData.HkTelemetryPkt.SpacecraftMode = MGR_SCIENCE_REBOOT_MODE;
     UT_SetDeferredRetcode(UT_KEY(OS_write), 1, sizeof(MGR_Hk_tlm_t) - 1);
