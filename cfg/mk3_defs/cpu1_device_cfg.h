@@ -1,5 +1,12 @@
 #include "../nos3_defs/cpu1_device_cfg.h"
 
+/* The pc-linux PSP maps ./cf to /cf. Keep the MGR state in the writable release. */
+#define MGR_CFG
+#define MGR_CFG_FILE_PATH              "/cf/mgr.bin"
+#define MGR_CFG_REBOOT_TIME_TIC_OFFSET  0
+/* Keep the GomSpace image's clock when restoring the bench mode record. */
+#define MGR_CFG_RESTORE_LOCAL_TIME      0
+
 /*
 ** PAYLOAD_IF Configuration
 ** The payload link uses the FPGA-side RS-422 port (PL RS422-1, J14) at the

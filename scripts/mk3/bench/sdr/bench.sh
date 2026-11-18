@@ -22,6 +22,7 @@ cFS package: $STAR_PKG
   mon             watch that recording live (Ctrl-C stops watching, recording continues)
   mon_stop        stop recording
   hk              ask payload_if for one housekeeping packet and print it
+  mgr_hk          ask MGR for one housekeeping packet and print it
   pingpi [MET]    send the Pi a time sync ping (MET in ms, default 42), show the replies
   picmd OP [ARG]  send the Pi any command: opcode in hex, 32-bit argument (default 0)
   events [N]      last N cFS event messages (default 10)
@@ -127,6 +128,13 @@ hk() {
     "$SBTOOL" cmd 0x1851 0 > /dev/null
     sleep 1
     grep 'PAYLOAD_IF HK' "$TLM_LOG" | tail -n 1
+}
+
+mgr_hk() {
+    _need_mon || return 1
+    "$SBTOOL" cmd 0x18F9 0 > /dev/null || return 1
+    sleep 1
+    grep 'MGR HK' "$TLM_LOG" | tail -n 1
 }
 
 picmd() {

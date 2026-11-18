@@ -126,6 +126,7 @@ We will do so via COSMOS:
 ![Scenario Nominal - Science Mode commands](./_static/scenario_nominal_ops/MGR_cmd_and_tlm.png)
 
 Notice the various commands listed in the dropdown menu.
+If `SPACECRAFT_MODE` is `SAFE` or `SAFE_REBOOT`, the operator must send `MGR_EXIT_SAFE_CC` and confirm `IDLE` in housekeeping before proceeding.
 For this we will be sending one to activate science mode (this tells the spacecraft that it's OK to perform science when conditions allow):
 * Select the command `MGR_SET_MODE_CC`.
 * In this command's dropdown menu, select `SCIENCE` as the mode.

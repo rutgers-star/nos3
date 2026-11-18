@@ -20,6 +20,30 @@ TELEMETRY BUSOBC PAYLOAD_IF_HK LITTLE_ENDIAN "payload_if housekeeping"
   APPEND_ITEM HK_PERIOD       16 UINT "Seconds between periodic reports (needs the scheduler app, not on the bench)"
     UNITS seconds s
 
+TELEMETRY BUSOBC MGR_HK LITTLE_ENDIAN "Spacecraft mode manager housekeeping"
+  APPEND_ID_ITEM CCSDS_STREAMID 16 UINT 0x08F8 "CCSDS Packet Identification" BIG_ENDIAN
+  APPEND_ITEM    CCSDS_SEQUENCE 16 UINT "CCSDS Packet Sequence Control" BIG_ENDIAN
+  APPEND_ITEM    CCSDS_LENGTH   16 UINT "CCSDS Packet Data Length" BIG_ENDIAN
+  APPEND_ITEM    CCSDS_SECONDS  32 UINT "busOBC time (seconds)" BIG_ENDIAN
+  APPEND_ITEM    CCSDS_SUBSECS  16 UINT "busOBC time (subseconds)" BIG_ENDIAN
+  APPEND_ITEM    CCSDS_SPARE    32 UINT ""
+  APPEND_ITEM CMD_ERR_COUNT       8 UINT "MGR command errors"
+  APPEND_ITEM CMD_COUNT           8 UINT "MGR command count"
+  APPEND_ITEM SPACECRAFT_MODE     8 UINT "Current spacecraft mode"
+    STATE SAFE 1
+    STATE SAFE_REBOOT 2
+    STATE SCIENCE 3
+    STATE SCIENCE_REBOOT 4
+    STATE IDLE 5
+  APPEND_ITEM BOOT_COUNTER       16 UINT "Prepared reboots"
+  APPEND_ITEM ANOM_REBOOT_COUNTER 16 UINT "Anomalous reboots"
+  APPEND_ITEM TIME_TICS          64 INT "Stored OSAL time ticks"
+  APPEND_ITEM SCIENCE_STATUS      8 UINT "Current science status"
+  APPEND_ITEM SCIENCE_PASS_COUNT 16 UINT "Science pass count"
+  APPEND_ITEM AK_CONFIG           8 UINT "Alaska region enabled"
+  APPEND_ITEM CONUS_CONFIG        8 UINT "CONUS region enabled"
+  APPEND_ITEM HI_CONFIG           8 UINT "Hawaii region enabled"
+
 TELEMETRY BUSOBC EVENT LITTLE_ENDIAN "cFS event message"
   APPEND_ID_ITEM CCSDS_STREAMID 16 UINT 0x0808 "CCSDS Packet Identification" BIG_ENDIAN
   APPEND_ITEM    CCSDS_SEQUENCE 16 UINT "CCSDS Packet Sequence Control" BIG_ENDIAN

@@ -82,11 +82,24 @@ for p in ('ADCS_REQUEST_DCE', 'ADCS_TARGET_ORIENTATION', 'BULK_CALCULATION', 'BU
 for c in ('ES', 'EVS', 'SB', 'TBL', 'TIME'):
     api('cmd', f'BUSOBC CFE_{c}_SEND_HK')
 api('cmd', 'BUSOBC CFE_SB_SEND_STATS'); time.sleep(3)
-expect('apps running on the busOBC (ci_lab, to_lab, payload_if)', t('BUSOBC CFE_ES_HK REGISTEREDEXTERNALAPPS'), 3)
+expect('apps running on the busOBC (ci_lab, to_lab, mgr, payload_if)', t('BUSOBC CFE_ES_HK REGISTEREDEXTERNALAPPS'), 4)
 expect('cFE major version is sane', t('BUSOBC CFE_ES_HK CFEMAJORVERSION'), lambda v: 1 <= v <= 20)
 expect('Software Bus pipes in use', t('BUSOBC CFE_SB_STATS PIPESINUSE'), lambda v: 3 <= v <= 64)
 s0 = t('BUSOBC CFE_TIME_HK SECONDSMET'); api('cmd', 'BUSOBC CFE_TIME_SEND_HK'); time.sleep(6); api('cmd', 'BUSOBC CFE_TIME_SEND_HK'); time.sleep(2)
 expect('busOBC mission time advances', t('BUSOBC CFE_TIME_HK SECONDSMET'), lambda v: 4 <= v - s0 <= 30)
+
+# MGR command and telemetry smoke check. Mode transitions require a separate operator run.
+mgr_hk_packets = lambda: api('get_tlm_cnts', [['BUSOBC', 'MGR_HK']])[0]
+mgr_before = mgr_hk_packets()
+api('cmd', 'BUSOBC MGR_REQ_HK'); time.sleep(2)
+expect('MGR sends housekeeping when asked', mgr_hk_packets(), lambda n: n > mgr_before)
+mgr_mode = t('BUSOBC MGR_HK SPACECRAFT_MODE')
+mgr_count = t('BUSOBC MGR_HK CMD_COUNT')
+api('cmd', 'BUSOBC MGR_NOOP'); time.sleep(1)
+api('cmd', 'BUSOBC MGR_REQ_HK'); time.sleep(2)
+expect('MGR NOOP counted', t('BUSOBC MGR_HK CMD_COUNT'), lambda n: n == (mgr_count + 1) % 256)
+expect('MGR NOOP preserves the reported mode', t('BUSOBC MGR_HK SPACECRAFT_MODE'),
+       lambda mode: mode is not None and mode == mgr_mode)
 
 # ---- Faults: the real busOBC checks must count each of these
 def counter(name):

@@ -32,6 +32,7 @@ PAYLOAD_IF_CMD_MID = 0x1850
 HK_REQUEST_MID = 0x1851
 PAYLOAD_IF_HK_MID = 0x0860
 PAYOBC_WRAPPER_MID = 0x0862
+MGR_HK_MID = 0x08F8
 EVENT_MID = 0x0808
 TLM_HDR_LEN = 16
 CFE_HK_REQUEST_MIDS = (0x1808, 0x1809, 0x180B, 0x180C, 0x180D)
@@ -212,6 +213,9 @@ def describe_command(pkt):
 
 def describe_telemetry(pkt):
     mid = struct.unpack(">H", pkt[:2])[0]
+    if mid == MGR_HK_MID and len(pkt) >= TLM_HDR_LEN + 7:
+        cmd_err, cmd, mode, boots, anomalous_boots = struct.unpack_from("<BBBHH", pkt, TLM_HDR_LEN)
+        return "MGR HK: cmd_err=%d cmd=%d mode=%d boots=%d anomalous_boots=%d" % (cmd_err, cmd, mode, boots, anomalous_boots)
     if mid == PAYOBC_WRAPPER_MID and len(pkt) >= TLM_HDR_LEN + 7:
         apid = struct.unpack(">H", pkt[TLM_HDR_LEN:TLM_HDR_LEN + 2])[0] & 0x07FF
         data = pkt[TLM_HDR_LEN + 6:]
@@ -231,8 +235,9 @@ def describe_telemetry(pkt):
         return "from Pi: APID 0x%03X, %d data bytes" % (apid, len(data))
     if mid == EVENT_MID and len(pkt) > TLM_HDR_LEN + 32:
         app = pkt[TLM_HDR_LEN:TLM_HDR_LEN + 20].split(b"\0")[0].decode(errors="replace")
+        event_id = struct.unpack_from("<H", pkt, TLM_HDR_LEN + 20)[0]
         text = pkt[TLM_HDR_LEN + 32:TLM_HDR_LEN + 154].split(b"\0")[0].decode(errors="replace")
-        return "cFS event %s: %s" % (app, text)
+        return "cFS event %s %d: %s" % (app, event_id, text)
     return None
 
 

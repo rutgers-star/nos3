@@ -39,6 +39,7 @@
 #define PAYLOAD_IF_HK_TLM_MID     0x0860
 #define PAYLOAD_IF_PAYOBC_TLM_MID 0x0862
 #define CFE_EVS_LONG_EVENT_MID    0x0808
+#define MGR_HK_TLM_MID           0x08F8
 
 #define CMD_HDR_LEN 8
 #define TLM_HDR_LEN 16
@@ -253,6 +254,15 @@ static void print_packet(const uint8_t *pkt, size_t len)
         const uint8_t *p = pkt + TLM_HDR_LEN;
         /* DeviceCount counts a successful enable as well as every accepted frame */
         printf("  PAYLOAD_IF HK: cmd_err=%u cmd=%u dev_err=%u dev_ok=%u enabled=%u", p[0], p[1], p[2], p[3], p[4]);
+    }
+    else if (mid == MGR_HK_TLM_MID && len >= TLM_HDR_LEN + 7)
+    {
+        const uint8_t *p = pkt + TLM_HDR_LEN;
+        unsigned boot_count = p[3] | (p[4] << 8);
+        unsigned anomalous_boot_count = p[5] | (p[6] << 8);
+
+        printf("  MGR HK: cmd_err=%u cmd=%u mode=%u boots=%u anomalous_boots=%u", p[0], p[1], p[2], boot_count,
+               anomalous_boot_count);
     }
     else if (is_payobc_packet(pkt, len))
     {
