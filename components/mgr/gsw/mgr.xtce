@@ -1,0 +1,284 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<xtce:SpaceSystem xmlns:xtce="http://www.omg.org/spec/XTCE/20180204" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" name="MGR">
+  <xtce:SpaceSystem name="MGR_HK_TLM">
+    <xtce:TelemetryMetaData>
+      <xtce:ParameterTypeSet>
+        <xtce:IntegerParameterType name="CMD_ERR_COUNT_Type" shortDescription="Command Error Count" signed="false">
+          <xtce:IntegerDataEncoding sizeInBits="8" encoding="unsigned" byteOrder="leastSignificantByteFirst"/>
+        </xtce:IntegerParameterType>
+        <xtce:IntegerParameterType name="CMD_COUNT_Type" shortDescription="Command Count" signed="false">
+          <xtce:IntegerDataEncoding sizeInBits="8" encoding="unsigned" byteOrder="leastSignificantByteFirst"/>
+        </xtce:IntegerParameterType>
+        <xtce:IntegerParameterType name="BOOT_COUNTER_Type" shortDescription="Boot Count" signed="false">
+          <xtce:IntegerDataEncoding sizeInBits="16" encoding="unsigned" byteOrder="leastSignificantByteFirst"/>
+        </xtce:IntegerParameterType>
+        <xtce:IntegerParameterType name="ANOM_REBOOT_COUNTER_Type" shortDescription="Anomalous Boot Count" signed="false">
+          <xtce:IntegerDataEncoding sizeInBits="16" encoding="unsigned" byteOrder="leastSignificantByteFirst"/>
+        </xtce:IntegerParameterType>
+        <xtce:IntegerParameterType name="TIME_TICS_Type" shortDescription="Time Tics Offset from J2000" signed="false">
+          <xtce:IntegerDataEncoding sizeInBits="64" encoding="unsigned" byteOrder="leastSignificantByteFirst"/>
+        </xtce:IntegerParameterType>
+        <xtce:IntegerParameterType name="SCIENCE_PASS_COUNT_Type" shortDescription="Science Pass Count" signed="false">
+          <xtce:IntegerDataEncoding sizeInBits="16" encoding="unsigned" byteOrder="leastSignificantByteFirst"/>
+        </xtce:IntegerParameterType>
+        <xtce:EnumeratedParameterType name="SPACECRAFT_MODE_Type" shortDescription="SPACECRAFT_MODE_Type">
+          <xtce:IntegerDataEncoding sizeInBits="8" encoding="unsigned"/>
+          <xtce:EnumerationList>
+            <xtce:Enumeration value="1" label="SAFE"/>
+            <xtce:Enumeration value="2" label="SAFE_REBOOT"/>
+            <xtce:Enumeration value="3" label="SCIENCE"/>
+            <xtce:Enumeration value="4" label="SCIENCE_REBOOT"/>
+          </xtce:EnumerationList>
+        </xtce:EnumeratedParameterType>
+        <xtce:EnumeratedParameterType name="SCIENCE_STATUS_Type" shortDescription="SCIENCE_STATUS_Type">
+          <xtce:IntegerDataEncoding sizeInBits="8" encoding="unsigned"/>
+          <xtce:EnumerationList>
+            <xtce:Enumeration value="0" label="SCIENCE_OFF"/>
+            <xtce:Enumeration value="1" label="SCIENCE_INITIALIZED"/>
+            <xtce:Enumeration value="2" label="SCIENCE_OVER_AK"/>
+            <xtce:Enumeration value="3" label="SCIENCE_OVER_CONUS"/>
+            <xtce:Enumeration value="4" label="SCIENCE_OVER_HI"/>
+            <xtce:Enumeration value="5" label="NO_SCIENCE_LEFT_AK"/>
+            <xtce:Enumeration value="6" label="NO_SCIENCE_LEFT_CONUS"/>
+            <xtce:Enumeration value="7" label="NO_SCIENCE_LEFT_HI"/>
+            <xtce:Enumeration value="8" label="NO_SCIENCE_LOW_POWER"/>
+            <xtce:Enumeration value="9" label="NO_SCIENCE_RECHARGED"/>
+            <xtce:Enumeration value="10" label="EXITED_SCIENCE_MODE"/>
+          </xtce:EnumerationList>
+        </xtce:EnumeratedParameterType>
+        <xtce:EnumeratedParameterType name="AK_CONFIG_Type" shortDescription="AK_CONFIG_Type">
+          <xtce:IntegerDataEncoding sizeInBits="8" encoding="unsigned"/>
+          <xtce:EnumerationList>
+            <xtce:Enumeration value="0" label="DISABLED"/>
+            <xtce:Enumeration value="1" label="ENABLED"/>
+          </xtce:EnumerationList>
+        </xtce:EnumeratedParameterType>
+        <xtce:EnumeratedParameterType name="CONUS_CONFIG_Type" shortDescription="CONUS_CONFIG_Type">
+          <xtce:IntegerDataEncoding sizeInBits="8" encoding="unsigned"/>
+          <xtce:EnumerationList>
+            <xtce:Enumeration value="0" label="DISABLED"/>
+            <xtce:Enumeration value="1" label="ENABLED"/>
+          </xtce:EnumerationList>
+        </xtce:EnumeratedParameterType>
+        <xtce:EnumeratedParameterType name="HI_CONFIG_Type" shortDescription="HI_CONFIG_Type">
+          <xtce:IntegerDataEncoding sizeInBits="8" encoding="unsigned"/>
+          <xtce:EnumerationList>
+            <xtce:Enumeration value="0" label="DISABLED"/>
+            <xtce:Enumeration value="1" label="ENABLED"/>
+          </xtce:EnumerationList>
+        </xtce:EnumeratedParameterType>
+      </xtce:ParameterTypeSet>
+      <xtce:ParameterSet>
+        <xtce:Parameter name="CMD_ERR_COUNT" parameterTypeRef="CMD_ERR_COUNT_Type"/>
+        <xtce:Parameter name="CMD_COUNT" parameterTypeRef="CMD_COUNT_Type"/>
+        <xtce:Parameter name="BOOT_COUNTER" parameterTypeRef="BOOT_COUNTER_Type"/>
+        <xtce:Parameter name="ANOM_REBOOT_COUNTER" parameterTypeRef="ANOM_REBOOT_COUNTER_Type"/>
+        <xtce:Parameter name="TIME_TICS" parameterTypeRef="TIME_TICS_Type"/>
+        <xtce:Parameter name="SCIENCE_PASS_COUNT" parameterTypeRef="SCIENCE_PASS_COUNT_Type"/>
+        <xtce:Parameter name="SPACECRAFT_MODE" parameterTypeRef="SPACECRAFT_MODE_Type"/>
+        <xtce:Parameter name="SCIENCE_STATUS" parameterTypeRef="SCIENCE_STATUS_Type"/>
+        <xtce:Parameter name="AK_CONFIG" parameterTypeRef="AK_CONFIG_Type"/>
+        <xtce:Parameter name="CONUS_CONFIG" parameterTypeRef="CONUS_CONFIG_Type"/>
+        <xtce:Parameter name="HI_CONFIG" parameterTypeRef="HI_CONFIG_Type"/>
+      </xtce:ParameterSet>
+      <xtce:ContainerSet>
+        <xtce:SequenceContainer name="MGR_HK_TLM" shortDescription="MGR_Hk_tlm_t">
+          <xtce:EntryList>
+            <xtce:ParameterRefEntry parameterRef="CMD_ERR_COUNT"/>
+            <xtce:ParameterRefEntry parameterRef="CMD_COUNT"/>
+            <xtce:ParameterRefEntry parameterRef="SPACECRAFT_MODE"/>
+            <xtce:ParameterRefEntry parameterRef="BOOT_COUNTER"/>
+            <xtce:ParameterRefEntry parameterRef="ANOM_REBOOT_COUNTER"/>
+            <xtce:ParameterRefEntry parameterRef="TIME_TICS"/>
+            <xtce:ParameterRefEntry parameterRef="SCIENCE_STATUS"/>
+            <xtce:ParameterRefEntry parameterRef="SCIENCE_PASS_COUNT"/>
+            <xtce:ParameterRefEntry parameterRef="AK_CONFIG"/>
+            <xtce:ParameterRefEntry parameterRef="CONUS_CONFIG"/>
+            <xtce:ParameterRefEntry parameterRef="HI_CONFIG"/>
+          </xtce:EntryList>
+          <xtce:BaseContainer containerRef="/CCSDS/CCSDS_TM">
+            <xtce:RestrictionCriteria>
+              <xtce:ComparisonList>
+                <xtce:Comparison parameterRef="/CCSDS/CCSDS_STREAMID" value="2296"/>
+              </xtce:ComparisonList>
+            </xtce:RestrictionCriteria>
+          </xtce:BaseContainer>
+        </xtce:SequenceContainer>
+      </xtce:ContainerSet>
+    </xtce:TelemetryMetaData>
+  </xtce:SpaceSystem>
+  <xtce:SpaceSystem name="CMD">
+    <xtce:CommandMetaData>
+      <xtce:ArgumentTypeSet>
+        <xtce:EnumeratedArgumentType name="SPACECRAFT_MODE_Type" shortDescription="SPACECRAFT_MODE_Type">
+          <xtce:IntegerDataEncoding sizeInBits="8" encoding="unsigned"/>
+          <xtce:EnumerationList>
+            <xtce:Enumeration value="1" label="SAFE"/>
+            <xtce:Enumeration value="2" label="SAFE_REBOOT"/>
+            <xtce:Enumeration value="3" label="SCIENCE"/>
+            <xtce:Enumeration value="4" label="SCIENCE_REBOOT"/>
+          </xtce:EnumerationList>
+        </xtce:EnumeratedArgumentType>
+        <xtce:EnumeratedArgumentType name="AK_STATUS_Type" shortDescription="AK_STATUS_Type">
+          <xtce:IntegerDataEncoding sizeInBits="8" encoding="unsigned"/>
+          <xtce:EnumerationList>
+            <xtce:Enumeration value="0" label="DISABLE"/>
+            <xtce:Enumeration value="1" label="ENABLE"/>
+          </xtce:EnumerationList>
+        </xtce:EnumeratedArgumentType>
+        <xtce:EnumeratedArgumentType name="CONUS_STATUS_Type" shortDescription="CONUS_STATUS_Type">
+          <xtce:IntegerDataEncoding sizeInBits="8" encoding="unsigned"/>
+          <xtce:EnumerationList>
+            <xtce:Enumeration value="0" label="DISABLE"/>
+            <xtce:Enumeration value="1" label="ENABLE"/>
+          </xtce:EnumerationList>
+        </xtce:EnumeratedArgumentType>
+        <xtce:EnumeratedArgumentType name="HI_STATUS_Type" shortDescription="HI_STATUS_Type">
+          <xtce:IntegerDataEncoding sizeInBits="8" encoding="unsigned"/>
+          <xtce:EnumerationList>
+            <xtce:Enumeration value="0" label="DISABLE"/>
+            <xtce:Enumeration value="1" label="ENABLE"/>
+          </xtce:EnumerationList>
+        </xtce:EnumeratedArgumentType>
+      </xtce:ArgumentTypeSet>
+      <xtce:MetaCommandSet>
+        <xtce:MetaCommand name="MGR_NOOP_CC">
+          <xtce:BaseMetaCommand metaCommandRef="/CCSDS/CCSDS_TC">
+            <xtce:ArgumentAssignmentList>
+              <xtce:ArgumentAssignment argumentName="CCSDS_STREAMID" argumentValue="6392"/>
+              <xtce:ArgumentAssignment argumentName="CCSDS_FC" argumentValue="0"/>
+            </xtce:ArgumentAssignmentList>
+          </xtce:BaseMetaCommand>
+          <xtce:ArgumentList/>
+          <xtce:CommandContainer name="MGR_MGR_NOOP_CC_CommandContainer">
+            <xtce:EntryList/>
+          </xtce:CommandContainer>
+        </xtce:MetaCommand>
+        <xtce:MetaCommand name="MGR_RST_COUNTERS_CC">
+          <xtce:BaseMetaCommand metaCommandRef="/CCSDS/CCSDS_TC">
+            <xtce:ArgumentAssignmentList>
+              <xtce:ArgumentAssignment argumentName="CCSDS_STREAMID" argumentValue="6392"/>
+              <xtce:ArgumentAssignment argumentName="CCSDS_FC" argumentValue="1"/>
+            </xtce:ArgumentAssignmentList>
+          </xtce:BaseMetaCommand>
+          <xtce:ArgumentList/>
+          <xtce:CommandContainer name="MGR_MGR_RST_COUNTERS_CC_CommandContainer">
+            <xtce:EntryList/>
+          </xtce:CommandContainer>
+        </xtce:MetaCommand>
+        <xtce:MetaCommand name="MGR_SET_MODE_CC">
+          <xtce:BaseMetaCommand metaCommandRef="/CCSDS/CCSDS_TC">
+            <xtce:ArgumentAssignmentList>
+              <xtce:ArgumentAssignment argumentName="CCSDS_STREAMID" argumentValue="6392"/>
+              <xtce:ArgumentAssignment argumentName="CCSDS_FC" argumentValue="2"/>
+            </xtce:ArgumentAssignmentList>
+          </xtce:BaseMetaCommand>
+          <xtce:ArgumentList>
+            <xtce:Argument name="SPACECRAFT_MODE" argumentTypeRef="SPACECRAFT_MODE_Type"/>
+          </xtce:ArgumentList>
+          <xtce:CommandContainer name="MGR_MGR_SET_MODE_CC_CommandContainer">
+            <xtce:EntryList>
+              <xtce:ArgumentRefEntry argumentRef="SPACECRAFT_MODE"/>
+            </xtce:EntryList>
+          </xtce:CommandContainer>
+        </xtce:MetaCommand>
+        <xtce:MetaCommand name="MGR_REBOOT_PREP_CC">
+          <xtce:BaseMetaCommand metaCommandRef="/CCSDS/CCSDS_TC">
+            <xtce:ArgumentAssignmentList>
+              <xtce:ArgumentAssignment argumentName="CCSDS_STREAMID" argumentValue="6392"/>
+              <xtce:ArgumentAssignment argumentName="CCSDS_FC" argumentValue="3"/>
+            </xtce:ArgumentAssignmentList>
+          </xtce:BaseMetaCommand>
+          <xtce:ArgumentList/>
+          <xtce:CommandContainer name="MGR_MGR_REBOOT_PREP_CC_CommandContainer">
+            <xtce:EntryList/>
+          </xtce:CommandContainer>
+        </xtce:MetaCommand>
+        <xtce:MetaCommand name="MGR_SCIPASS_COUNT_INC_CC">
+          <xtce:BaseMetaCommand metaCommandRef="/CCSDS/CCSDS_TC">
+            <xtce:ArgumentAssignmentList>
+              <xtce:ArgumentAssignment argumentName="CCSDS_STREAMID" argumentValue="6392"/>
+              <xtce:ArgumentAssignment argumentName="CCSDS_FC" argumentValue="4"/>
+            </xtce:ArgumentAssignmentList>
+          </xtce:BaseMetaCommand>
+          <xtce:ArgumentList/>
+          <xtce:CommandContainer name="MGR_MGR_SCIPASS_COUNT_INC_CC_CommandContainer">
+            <xtce:EntryList/>
+          </xtce:CommandContainer>
+        </xtce:MetaCommand>
+        <xtce:MetaCommand name="MGR_SCIPASS_COUNT_RESET_CC">
+          <xtce:BaseMetaCommand metaCommandRef="/CCSDS/CCSDS_TC">
+            <xtce:ArgumentAssignmentList>
+              <xtce:ArgumentAssignment argumentName="CCSDS_STREAMID" argumentValue="6392"/>
+              <xtce:ArgumentAssignment argumentName="CCSDS_FC" argumentValue="5"/>
+            </xtce:ArgumentAssignmentList>
+          </xtce:BaseMetaCommand>
+          <xtce:ArgumentList/>
+          <xtce:CommandContainer name="MGR_MGR_SCIPASS_COUNT_RESET_CC_CommandContainer">
+            <xtce:EntryList/>
+          </xtce:CommandContainer>
+        </xtce:MetaCommand>
+        <xtce:MetaCommand name="MGR_SET_AK_CC">
+          <xtce:BaseMetaCommand metaCommandRef="/CCSDS/CCSDS_TC">
+            <xtce:ArgumentAssignmentList>
+              <xtce:ArgumentAssignment argumentName="CCSDS_STREAMID" argumentValue="6392"/>
+              <xtce:ArgumentAssignment argumentName="CCSDS_FC" argumentValue="6"/>
+            </xtce:ArgumentAssignmentList>
+          </xtce:BaseMetaCommand>
+          <xtce:ArgumentList>
+            <xtce:Argument name="AK_STATUS" argumentTypeRef="AK_STATUS_Type"/>
+          </xtce:ArgumentList>
+          <xtce:CommandContainer name="MGR_MGR_SET_AK_CC_CommandContainer">
+            <xtce:EntryList>
+              <xtce:ArgumentRefEntry argumentRef="AK_STATUS"/>
+            </xtce:EntryList>
+          </xtce:CommandContainer>
+        </xtce:MetaCommand>
+        <xtce:MetaCommand name="MGR_SET_CONUS_CC">
+          <xtce:BaseMetaCommand metaCommandRef="/CCSDS/CCSDS_TC">
+            <xtce:ArgumentAssignmentList>
+              <xtce:ArgumentAssignment argumentName="CCSDS_STREAMID" argumentValue="6392"/>
+              <xtce:ArgumentAssignment argumentName="CCSDS_FC" argumentValue="7"/>
+            </xtce:ArgumentAssignmentList>
+          </xtce:BaseMetaCommand>
+          <xtce:ArgumentList>
+            <xtce:Argument name="CONUS_STATUS" argumentTypeRef="CONUS_STATUS_Type"/>
+          </xtce:ArgumentList>
+          <xtce:CommandContainer name="MGR_MGR_SET_CONUS_CC_CommandContainer">
+            <xtce:EntryList>
+              <xtce:ArgumentRefEntry argumentRef="CONUS_STATUS"/>
+            </xtce:EntryList>
+          </xtce:CommandContainer>
+        </xtce:MetaCommand>
+        <xtce:MetaCommand name="MGR_SET_HI_CC">
+          <xtce:BaseMetaCommand metaCommandRef="/CCSDS/CCSDS_TC">
+            <xtce:ArgumentAssignmentList>
+              <xtce:ArgumentAssignment argumentName="CCSDS_STREAMID" argumentValue="6392"/>
+              <xtce:ArgumentAssignment argumentName="CCSDS_FC" argumentValue="8"/>
+            </xtce:ArgumentAssignmentList>
+          </xtce:BaseMetaCommand>
+          <xtce:ArgumentList>
+            <xtce:Argument name="HI_STATUS" argumentTypeRef="HI_STATUS_Type"/>
+          </xtce:ArgumentList>
+          <xtce:CommandContainer name="MGR_MGR_SET_HI_CC_CommandContainer">
+            <xtce:EntryList>
+              <xtce:ArgumentRefEntry argumentRef="HI_STATUS"/>
+            </xtce:EntryList>
+          </xtce:CommandContainer>
+        </xtce:MetaCommand>
+        <xtce:MetaCommand name="MGR_REQ_HK">
+          <xtce:BaseMetaCommand metaCommandRef="/CCSDS/CCSDS_TC">
+            <xtce:ArgumentAssignmentList>
+              <xtce:ArgumentAssignment argumentName="CCSDS_STREAMID" argumentValue="6393"/>
+              <xtce:ArgumentAssignment argumentName="CCSDS_FC" argumentValue="0"/>
+            </xtce:ArgumentAssignmentList>
+          </xtce:BaseMetaCommand>
+          <xtce:ArgumentList/>
+          <xtce:CommandContainer name="MGR_MGR_REQ_HK_CommandContainer">
+            <xtce:EntryList/>
+          </xtce:CommandContainer>
+        </xtce:MetaCommand>
+      </xtce:MetaCommandSet>
+    </xtce:CommandMetaData>
+  </xtce:SpaceSystem>
+</xtce:SpaceSystem>

@@ -1,0 +1,40 @@
+TELEMETRY MGR MGR_HK_TLM LITTLE_ENDIAN "MGR_Hk_tlm_t"
+  APPEND_ID_ITEM CCSDS_STREAMID       16 UINT 0x08F8  "CCSDS Packet Identification" BIG_ENDIAN
+  APPEND_ITEM    CCSDS_SEQUENCE       16 UINT         "CCSDS Packet Sequence Control" BIG_ENDIAN
+  APPEND_ITEM    CCSDS_LENGTH         16 UINT         "CCSDS Packet Data Length" BIG_ENDIAN
+  APPEND_ITEM    CCSDS_SECONDS        32 UINT         "CCSDS Telemetry Secondary Header (seconds)" BIG_ENDIAN
+  APPEND_ITEM    CCSDS_SUBSECS        16 UINT         "CCSDS Telemetry Secondary Header (subseconds)" BIG_ENDIAN
+  APPEND_ITEM    CCSDS_SPARE          32 UINT         ""
+  APPEND_ITEM    CMD_ERR_COUNT         8 UINT         "Command Error Count"
+  APPEND_ITEM    CMD_COUNT             8 UINT         "Command Count"
+  APPEND_ITEM    SPACECRAFT_MODE       8 UINT         "Spacecraft Mode"
+    STATE SAFE 1
+    STATE SAFE_REBOOT 2
+    STATE SCIENCE 3
+    STATE SCIENCE_REBOOT 4
+  APPEND_ITEM    BOOT_COUNTER         16 UINT         "Boot Count"
+  APPEND_ITEM    ANOM_REBOOT_COUNTER  16 UINT         "Anomalous Boot Count"
+  APPEND_ITEM    TIME_TICS            64 UINT         "Time Tics Offset from J2000"
+  APPEND_ITEM    SCIENCE_STATUS        8 UINT         "Science Status Field"
+    STATE SCIENCE_OFF             0
+    STATE SCIENCE_INITIALIZED     1
+    STATE SCIENCE_OVER_AK         2
+    STATE SCIENCE_OVER_CONUS      3
+    STATE SCIENCE_OVER_HI         4
+    STATE NO_SCIENCE_LEFT_AK      5
+    STATE NO_SCIENCE_LEFT_CONUS   6
+    STATE NO_SCIENCE_LEFT_HI      7
+    STATE NO_SCIENCE_LOW_POWER    8
+    STATE NO_SCIENCE_RECHARGED    9
+    STATE EXITED_SCIENCE_MODE     10
+
+  APPEND_ITEM    SCIENCE_PASS_COUNT   16 UINT         "Science Pass Count"
+  APPEND_ITEM    AK_CONFIG             8 UINT         "AK Config En/Dis"
+    STATE DISABLED 0
+    STATE ENABLED 1 GREEN
+  APPEND_ITEM    CONUS_CONFIG          8 UINT         "CONUS Config En/Dis"
+    STATE DISABLED 0
+    STATE ENABLED 1 GREEN
+  APPEND_ITEM    HI_CONFIG             8 UINT         "HI Config En/Dis"
+    STATE DISABLED 0
+    STATE ENABLED 1 GREEN
