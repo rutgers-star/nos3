@@ -416,6 +416,131 @@ void Test_MGR_ProcessGroundCommand(void)
     UtAssert_True(EventTest.MatchCount == 1, "MGR_CMD_ERR_EID generated (%u)", (unsigned int)EventTest.MatchCount);
 }
 
+static void SendModeTestCommand(uint32 Mid, CFE_MSG_FcnCode_t Code, size_t Size, uint8 Value, uint16 ExpectedEvent)
+{
+    MGR_U8_cmd_t      Command = {.U8 = Value};
+    CFE_SB_MsgId_t    MsgId = CFE_SB_ValueToMsgId(Mid);
+    UT_CheckEvent_t   Event;
+
+    UT_ResetState(UT_KEY(CFE_MSG_GetMsgId));
+    UT_ResetState(UT_KEY(CFE_MSG_GetFcnCode));
+    UT_ResetState(UT_KEY(CFE_MSG_GetSize));
+    UT_ResetState(UT_KEY(CFE_EVS_SendEvent));
+    /* Packet dispatch, command handling, and length rejection may each read the MID. */
+    for (size_t i = 0; i < 3; i++)
+    {
+        UT_SetDataBuffer(UT_KEY(CFE_MSG_GetMsgId), &MsgId, sizeof(MsgId), true);
+    }
+    UT_SetDataBuffer(UT_KEY(CFE_MSG_GetFcnCode), &Code, sizeof(Code), true);
+    UT_SetDataBuffer(UT_KEY(CFE_MSG_GetFcnCode), &Code, sizeof(Code), true);
+    UT_SetDataBuffer(UT_KEY(CFE_MSG_GetSize), &Size, sizeof(Size), true);
+    UT_CheckEvent_Setup(&Event, ExpectedEvent, NULL);
+    MGR_AppData.MsgPtr = CFE_MSG_PTR(Command.CmdHeader);
+    MGR_ProcessCommandPacket();
+    MGR_AppData.MsgPtr = NULL;
+    UtAssert_UINT32_EQ(Event.MatchCount, 1);
+}
+
+void Test_MGR_SafeModeLatch(void)
+{
+    const uint8 SafeModes[] = {MGR_SAFE_MODE, MGR_SAFE_REBOOT_MODE};
+    const uint8 SetModeTargets[] = {MGR_SAFE_MODE, MGR_SAFE_REBOOT_MODE, MGR_SCIENCE_MODE,
+                                   MGR_SCIENCE_REBOOT_MODE, MGR_IDLE_MODE, 0, UINT8_MAX};
+
+    for (size_t i = 0; i < sizeof(SafeModes); i++)
+    {
+        MGR_AppData.HkTelemetryPkt.SpacecraftMode = MGR_IDLE_MODE;
+        SendModeTestCommand(MGR_CMD_MID, MGR_SET_MODE_CC, sizeof(MGR_U8_cmd_t), SafeModes[i], MGR_CMD_SETMODE_INF_EID);
+        UtAssert_UINT8_EQ(MGR_AppData.HkTelemetryPkt.SpacecraftMode, SafeModes[i]);
+        MGR_ResetCounters();
+
+        /* SCIENCE here exercises the MGR command actually sent by LC AP25/SC RTS025. */
+        for (size_t j = 0; j < sizeof(SetModeTargets); j++)
+        {
+            SendModeTestCommand(MGR_CMD_MID, MGR_SET_MODE_CC, sizeof(MGR_U8_cmd_t), SetModeTargets[j],
+                                MGR_CMD_SETMODE_ERR_EID);
+            UtAssert_UINT8_EQ(MGR_AppData.HkTelemetryPkt.SpacecraftMode, SafeModes[i]);
+        }
+        SendModeTestCommand(MGR_CMD_MID, MGR_SET_MODE_CC, sizeof(MGR_NoArgs_cmd_t), MGR_SCIENCE_MODE, MGR_LEN_ERR_EID);
+        UtAssert_UINT8_EQ(MGR_AppData.HkTelemetryPkt.SpacecraftMode, SafeModes[i]);
+        SendModeTestCommand(MGR_CMD_MID, MGR_EXIT_SAFE_CC, sizeof(MGR_NoArgs_cmd_t) + 1, 0, MGR_LEN_ERR_EID);
+        UtAssert_UINT8_EQ(MGR_AppData.HkTelemetryPkt.SpacecraftMode, SafeModes[i]);
+        SendModeTestCommand(MGR_REQ_HK_MID, MGR_EXIT_SAFE_CC, sizeof(MGR_NoArgs_cmd_t), 0, MGR_DEVICE_TLM_ERR_EID);
+        UtAssert_UINT8_EQ(MGR_AppData.HkTelemetryPkt.SpacecraftMode, SafeModes[i]);
+        SendModeTestCommand(MGR_CMD_MID, 127, sizeof(MGR_NoArgs_cmd_t), 0, MGR_CMD_ERR_EID);
+        UtAssert_UINT8_EQ(MGR_AppData.HkTelemetryPkt.SpacecraftMode, SafeModes[i]);
+        UtAssert_UINT8_EQ(MGR_AppData.HkTelemetryPkt.CommandCount, 0);
+        UtAssert_UINT8_EQ(MGR_AppData.HkTelemetryPkt.CommandErrorCount, sizeof(SetModeTargets) + 4);
+
+        /* The other MGR commands used by the onboard RTS tables change only science telemetry. */
+        SendModeTestCommand(MGR_CMD_MID, MGR_UPDATE_SCI_STATUS_CC, sizeof(MGR_U8_cmd_t), SS_SCIENCE_INITIALIZED,
+                            MGR_CMD_UPDATE_SCI_STATUS_INF_EID);
+        UtAssert_UINT8_EQ(MGR_AppData.HkTelemetryPkt.SpacecraftMode, SafeModes[i]);
+        SendModeTestCommand(MGR_CMD_MID, MGR_SCI_PASS_INC_CC, sizeof(MGR_NoArgs_cmd_t), 0, MGR_CMD_RESET_SCIPASS_INF_EID);
+        UtAssert_UINT8_EQ(MGR_AppData.HkTelemetryPkt.SpacecraftMode, SafeModes[i]);
+
+        SendModeTestCommand(MGR_CMD_MID, MGR_EXIT_SAFE_CC, sizeof(MGR_NoArgs_cmd_t), 0, MGR_CMD_EXITSAFE_INF_EID);
+        UtAssert_UINT8_EQ(MGR_AppData.HkTelemetryPkt.SpacecraftMode, MGR_IDLE_MODE);
+        SendModeTestCommand(MGR_CMD_MID, MGR_EXIT_SAFE_CC, sizeof(MGR_NoArgs_cmd_t), 0, MGR_CMD_EXITSAFE_ERR_EID);
+        UtAssert_UINT8_EQ(MGR_AppData.HkTelemetryPkt.SpacecraftMode, MGR_IDLE_MODE);
+    }
+
+    /* Preserve the existing autonomous SCIENCE_REBOOT -> SCIENCE path outside the latch. */
+    MGR_AppData.HkTelemetryPkt.SpacecraftMode = MGR_SCIENCE_REBOOT_MODE;
+    SendModeTestCommand(MGR_CMD_MID, MGR_SET_MODE_CC, sizeof(MGR_U8_cmd_t), MGR_SCIENCE_MODE, MGR_CMD_SETMODE_INF_EID);
+    UtAssert_UINT8_EQ(MGR_AppData.HkTelemetryPkt.SpacecraftMode, MGR_SCIENCE_MODE);
+}
+
+void Test_MGR_RestoreSafeModeLatch(void)
+{
+    MGR_Hk_tlm_t Saved = {.SpacecraftMode = MGR_SAFE_MODE};
+
+    UT_SetDataBuffer(UT_KEY(OS_TimedRead), &Saved, sizeof(Saved), false);
+    MGR_RestoreHkFile();
+    UtAssert_UINT8_EQ(MGR_AppData.HkTelemetryPkt.SpacecraftMode, MGR_SAFE_MODE);
+    SendModeTestCommand(MGR_CMD_MID, MGR_SET_MODE_CC, sizeof(MGR_U8_cmd_t), MGR_SCIENCE_MODE, MGR_CMD_SETMODE_ERR_EID);
+    UtAssert_UINT8_EQ(MGR_AppData.HkTelemetryPkt.SpacecraftMode, MGR_SAFE_MODE);
+
+    SendModeTestCommand(MGR_CMD_MID, MGR_REBOOT_PREP_CC, sizeof(MGR_NoArgs_cmd_t), 0, MGR_CMD_REBOOT_PREP_INF_EID);
+    UtAssert_UINT8_EQ(MGR_AppData.HkTelemetryPkt.SpacecraftMode, MGR_SAFE_REBOOT_MODE);
+    UtAssert_UINT32_EQ(UT_GetStubCount(UT_KEY(OS_rename)), 1);
+    Saved.SpacecraftMode = MGR_SAFE_REBOOT_MODE;
+    UT_SetDataBuffer(UT_KEY(OS_TimedRead), &Saved, sizeof(Saved), false);
+    MGR_RestoreHkFile();
+    UtAssert_UINT8_EQ(MGR_AppData.HkTelemetryPkt.SpacecraftMode, MGR_SAFE_REBOOT_MODE);
+    SendModeTestCommand(MGR_CMD_MID, MGR_SET_MODE_CC, sizeof(MGR_U8_cmd_t), MGR_SCIENCE_MODE, MGR_CMD_SETMODE_ERR_EID);
+    UtAssert_UINT8_EQ(MGR_AppData.HkTelemetryPkt.SpacecraftMode, MGR_SAFE_REBOOT_MODE);
+
+    UT_SetDeferredRetcode(UT_KEY(OS_OpenCreate), 1, OS_ERROR);
+    MGR_RestoreHkFile();
+    UtAssert_UINT8_EQ(MGR_AppData.HkTelemetryPkt.SpacecraftMode, MGR_SAFE_REBOOT_MODE);
+
+    Saved.SpacecraftMode = MGR_SCIENCE_REBOOT_MODE;
+    UT_SetDataBuffer(UT_KEY(OS_TimedRead), &Saved, sizeof(Saved) - 1, false);
+    MGR_RestoreHkFile();
+    UtAssert_UINT8_EQ(MGR_AppData.HkTelemetryPkt.SpacecraftMode, MGR_SAFE_REBOOT_MODE);
+}
+
+void Test_MGR_SaveSafeModeFailure(void)
+{
+    MGR_Hk_tlm_t StaleSnapshot = {.SpacecraftMode = MGR_SCIENCE_REBOOT_MODE};
+
+    /* A failed save entering SAFE leaves the preceding SCIENCE_REBOOT snapshot. */
+    MGR_AppData.HkTelemetryPkt.SpacecraftMode = MGR_SCIENCE_REBOOT_MODE;
+    UT_SetDeferredRetcode(UT_KEY(OS_write), 1, sizeof(MGR_Hk_tlm_t) - 1);
+    SendModeTestCommand(MGR_CMD_MID, MGR_SET_MODE_CC, sizeof(MGR_U8_cmd_t), MGR_SAFE_MODE, MGR_HK_SAVE_ERR_EID);
+    UtAssert_UINT32_EQ(UT_GetStubCount(UT_KEY(OS_rename)), 0);
+    UtAssert_UINT8_EQ(MGR_AppData.HkTelemetryPkt.SpacecraftMode, MGR_SAFE_MODE);
+
+    UT_SetDataBuffer(UT_KEY(OS_TimedRead), &StaleSnapshot, sizeof(StaleSnapshot), false);
+    MGR_RestoreHkFile();
+    UtAssert_UINT8_EQ(MGR_AppData.HkTelemetryPkt.SpacecraftMode, MGR_SAFE_REBOOT_MODE);
+
+    /* After restart, RTS025 still cannot release the latch. */
+    SendModeTestCommand(MGR_CMD_MID, MGR_SET_MODE_CC, sizeof(MGR_U8_cmd_t), MGR_SCIENCE_MODE, MGR_CMD_SETMODE_ERR_EID);
+    UtAssert_UINT8_EQ(MGR_AppData.HkTelemetryPkt.SpacecraftMode, MGR_SAFE_REBOOT_MODE);
+}
+
 void Test_MGR_ReportHousekeeping(void)
 {
     /*
@@ -510,6 +635,9 @@ void UtTest_Setup(void)
     ADD_TEST(MGR_AppInit);
     ADD_TEST(MGR_ProcessCommandPacket);
     ADD_TEST(MGR_ProcessGroundCommand);
+    ADD_TEST(MGR_SafeModeLatch);
+    ADD_TEST(MGR_RestoreSafeModeLatch);
+    ADD_TEST(MGR_SaveSafeModeFailure);
     ADD_TEST(MGR_ReportHousekeeping);
     ADD_TEST(MGR_VerifyCmdLength);
     ADD_TEST(MGR_ProcessTelemetryRequest);

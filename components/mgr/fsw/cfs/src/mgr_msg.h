@@ -25,7 +25,7 @@
 #define MGR_SET_CONUS_CC         7
 #define MGR_SET_HI_CC            8
 #define MGR_UPDATE_SCI_STATUS_CC 9
-#define MGR_EXIT_SAFE_CC     10
+#define MGR_EXIT_SAFE_CC         10 /* Dedicated operator command; never issue from an onboard sequence. */
 
 /*
 ** Telemetry Request Command Codes

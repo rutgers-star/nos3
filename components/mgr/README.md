@@ -11,6 +11,16 @@ The available FSW is for use in the core Flight System (cFS) while the GSW suppo
 
 One example use not yet demonstrated of the MGR app is to handle deployable devices such as solar arrays or antennas.
 
+## Safe mode latch
+
+Flight requirements Rev E FSW-2 uses the MDD's approved release destination, `IDLE` (mode value 5).
+The dedicated operator command `EXIT_SAFE` (MID `0x18F8`, function code `10`, no arguments) releases
+`SAFE` or `SAFE_REBOOT` into `IDLE`. `SET_MODE` cannot change either latched mode. Onboard sequences
+must never issue `EXIT_SAFE`. Deliberate reboot preparation may move `SAFE` to `SAFE_REBOOT` while
+keeping the latch set. On restart, a saved `SAFE` or `SAFE_REBOOT` is restored exactly. Any other saved
+mode (including `SCIENCE_REBOOT`) or missing or incomplete saved data starts in `SAFE_REBOOT`. This
+prevents a stale snapshot from releasing the latch after a failed save.
+
 
 # Configuration
 The various configuration parameters available for each portion of the component are captured below.

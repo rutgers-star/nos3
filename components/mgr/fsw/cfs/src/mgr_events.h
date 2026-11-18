@@ -36,6 +36,9 @@
 #define MGR_CMD_SETHI_ERR_EID             23
 #define MGR_CMD_UPDATE_SCI_STATUS_INF_EID 24
 #define MGR_CMD_UPDATE_SCI_STATUS_ERR_EID 25
+#define MGR_CMD_EXITSAFE_INF_EID          26
+#define MGR_CMD_EXITSAFE_ERR_EID          27
+#define MGR_HK_SAVE_ERR_EID               28
 
 /* Standard telemetry event IDs */
 #define MGR_DEVICE_TLM_ERR_EID 30

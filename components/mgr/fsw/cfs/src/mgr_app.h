@@ -32,6 +32,7 @@
 #define MGR_SAFE_REBOOT_MODE    2
 #define MGR_SCIENCE_MODE        3
 #define MGR_SCIENCE_REBOOT_MODE 4
+#define MGR_IDLE_MODE           5
 
 /*
 ** Science Status

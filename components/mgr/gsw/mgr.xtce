@@ -28,6 +28,7 @@
             <xtce:Enumeration value="2" label="SAFE_REBOOT"/>
             <xtce:Enumeration value="3" label="SCIENCE"/>
             <xtce:Enumeration value="4" label="SCIENCE_REBOOT"/>
+            <xtce:Enumeration value="5" label="IDLE"/>
           </xtce:EnumerationList>
         </xtce:EnumeratedParameterType>
         <xtce:EnumeratedParameterType name="SCIENCE_STATUS_Type" shortDescription="SCIENCE_STATUS_Type">
@@ -117,6 +118,7 @@
             <xtce:Enumeration value="2" label="SAFE_REBOOT"/>
             <xtce:Enumeration value="3" label="SCIENCE"/>
             <xtce:Enumeration value="4" label="SCIENCE_REBOOT"/>
+            <xtce:Enumeration value="5" label="IDLE"/>
           </xtce:EnumerationList>
         </xtce:EnumeratedArgumentType>
         <xtce:EnumeratedArgumentType name="AK_STATUS_Type" shortDescription="AK_STATUS_Type">
@@ -180,6 +182,18 @@
             <xtce:EntryList>
               <xtce:ArgumentRefEntry argumentRef="SPACECRAFT_MODE"/>
             </xtce:EntryList>
+          </xtce:CommandContainer>
+        </xtce:MetaCommand>
+        <xtce:MetaCommand name="MGR_EXIT_SAFE_CC" shortDescription="Operator release of SAFE or SAFE_REBOOT into IDLE">
+          <xtce:BaseMetaCommand metaCommandRef="/CCSDS/CCSDS_TC">
+            <xtce:ArgumentAssignmentList>
+              <xtce:ArgumentAssignment argumentName="CCSDS_STREAMID" argumentValue="6392"/>
+              <xtce:ArgumentAssignment argumentName="CCSDS_FC" argumentValue="10"/>
+            </xtce:ArgumentAssignmentList>
+          </xtce:BaseMetaCommand>
+          <xtce:ArgumentList/>
+          <xtce:CommandContainer name="MGR_MGR_EXIT_SAFE_CC_CommandContainer">
+            <xtce:EntryList/>
           </xtce:CommandContainer>
         </xtce:MetaCommand>
         <xtce:MetaCommand name="MGR_REBOOT_PREP_CC">

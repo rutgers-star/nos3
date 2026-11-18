@@ -17,6 +17,18 @@
 */
 MGR_AppData_t MGR_AppData;
 
+static bool MGR_IsSafeMode(uint8 mode)
+{
+    return mode == MGR_SAFE_MODE || mode == MGR_SAFE_REBOOT_MODE;
+}
+
+static void MGR_RecordModeCommandError(void)
+{
+    /* Length validation tentatively counted this command as accepted. */
+    MGR_AppData.HkTelemetryPkt.CommandCount--;
+    MGR_AppData.HkTelemetryPkt.CommandErrorCount++;
+}
+
 /*
 ** Application entry point and main process loop
 */
@@ -142,14 +154,6 @@ int32 MGR_AppInit(void)
     }
 
     /*
-    ** Initialize the published HK message - this HK message will contain the
-    ** telemetry that has been defined in the MGR_HkTelemetryPkt for this app.
-    ** Note: Intentionally after RestoreHkFile to ensure TlmHeader correct.
-    */
-    CFE_MSG_Init(CFE_MSG_PTR(MGR_AppData.HkTelemetryPkt.TlmHeader), CFE_SB_ValueToMsgId(MGR_HK_TLM_MID),
-                 MGR_HK_TLM_LNGTH);
-
-    /*
     ** Restore Housekeeping Telemetry from the file system.
     ** If the restore fails for any reason, the data will be cleared.
     ** This function will also set some values such as SpacecraftMode if necessary.
@@ -266,27 +270,24 @@ void MGR_ProcessGroundCommand(void)
             if (MGR_VerifyCmdLength(MGR_AppData.MsgPtr, sizeof(MGR_U8_cmd_t)) == OS_SUCCESS)
             {
                 MGR_U8_cmd_t *mode_cmd = (MGR_U8_cmd_t *)MGR_AppData.MsgPtr;
-                if ((mode_cmd->U8 < MGR_SAFE_MODE) || (mode_cmd->U8 > MGR_SCIENCE_REBOOT_MODE))
+                if (mode_cmd->U8 < MGR_SAFE_MODE || mode_cmd->U8 > MGR_IDLE_MODE)
                 {
+                    MGR_RecordModeCommandError();
                     CFE_EVS_SendEvent(MGR_CMD_SETMODE_ERR_EID, CFE_EVS_EventType_ERROR,
                                       "MGR: Invalid mode commanded [%d], mode remains [%d]", mode_cmd->U8,
                                       MGR_AppData.HkTelemetryPkt.SpacecraftMode);
                 }
-                else if (
-                    (MGR_AppData.HkTelemetryPkt.SpacecraftMode == MGR_SAFE_MODE || MGR_AppData.HkTelemetryPkt.SpacecraftMode == MGR_SAFE_REBOOT_MODE) &&
-                    (mode_cmd->U8 == MGR_SCIENCE_MODE || mode_cmd->U8 == MGR_SCIENCE_REBOOT_MODE)
-                )
-
+                else if (MGR_IsSafeMode(MGR_AppData.HkTelemetryPkt.SpacecraftMode))
                 {
-                    MGR_AppData.HkTelemetryPkt.CommandErrorCount++;
-
-                    CFE_EVS_SendEvent(
-                        MGR_CMD_SETMODE_ERR_EID, CFE_EVS_EventType_ERROR, "MGR: Cannot leave safe mode using SET_MODE; operator command required. Mode remains [%d]", MGR_AppData.HkTelemetryPkt.SpacecraftMode
-                    );
+                    MGR_RecordModeCommandError();
+                    CFE_EVS_SendEvent(MGR_CMD_SETMODE_ERR_EID, CFE_EVS_EventType_ERROR,
+                                      "MGR: SET_MODE blocked by safe latch; mode remains [%d]",
+                                      MGR_AppData.HkTelemetryPkt.SpacecraftMode);
                 }
                 else
                 {
                     MGR_AppData.HkTelemetryPkt.SpacecraftMode = mode_cmd->U8;
+                    MGR_SaveHkFile();
                     CFE_EVS_SendEvent(MGR_CMD_SETMODE_INF_EID, CFE_EVS_EventType_INFORMATION,
                                       "MGR: Set mode command received [%d]", MGR_AppData.HkTelemetryPkt.SpacecraftMode);
                 }
@@ -303,6 +304,7 @@ void MGR_ProcessGroundCommand(void)
                     (MGR_AppData.HkTelemetryPkt.SpacecraftMode == MGR_SCIENCE_REBOOT_MODE))
                 {
                     MGR_AppData.HkTelemetryPkt.SpacecraftMode = MGR_SCIENCE_REBOOT_MODE;
+                    MGR_SaveHkFile();
                     CFE_EVS_SendEvent(MGR_CMD_REBOOT_PREP_INF_EID, CFE_EVS_EventType_INFORMATION,
                                       "MGR: Reboot prep commanded, mode now SCIENCE_REBOOT_MODE [%d]",
                                       MGR_AppData.HkTelemetryPkt.SpacecraftMode);
@@ -310,6 +312,7 @@ void MGR_ProcessGroundCommand(void)
                 else
                 {
                     MGR_AppData.HkTelemetryPkt.SpacecraftMode = MGR_SAFE_REBOOT_MODE;
+                    MGR_SaveHkFile();
                     CFE_EVS_SendEvent(MGR_CMD_REBOOT_PREP_INF_EID, CFE_EVS_EventType_INFORMATION,
                                       "MGR: Reboot prep commanded, mode now SAFE_REBOOT_MODE [%d]",
                                       MGR_AppData.HkTelemetryPkt.SpacecraftMode);
@@ -436,26 +439,26 @@ void MGR_ProcessGroundCommand(void)
                 }
             }
             break;
-        
-        /*
-        ** Exit Safe Mode Command
-        */
 
-       case MGR_EXIT_SAFE_CC:
+        /*
+        ** Dedicated operator release of the safe mode latch (FSW-2).
+        */
+        case MGR_EXIT_SAFE_CC:
             if (MGR_VerifyCmdLength(MGR_AppData.MsgPtr, sizeof(MGR_NoArgs_cmd_t)) == OS_SUCCESS)
             {
-                if (MGR_AppData.HkTelemetryPkt.SpacecraftMode == MGR_SAFE_MODE || MGR_AppData.HkTelemetryPkt.SpacecraftMode == MGR_SAFE_REBOOT_MODE)
+                if (MGR_IsSafeMode(MGR_AppData.HkTelemetryPkt.SpacecraftMode))
                 {
-                    MGR_AppData.HkTelemetryPkt.SpacecraftMode = MGR_SCIENCE_MODE;
-                    CFE_EVS_SendEvent(MGR_CMD_SETMODE_INF_EID, CFE_EVS_EventType_INFORMATION,
-                                      "MGR: Exit safe mode command received, mode now SCIENCE_MODE [%d]",
-                                      MGR_AppData.HkTelemetryPkt.SpacecraftMode);
+                    uint8 previous_mode = MGR_AppData.HkTelemetryPkt.SpacecraftMode;
+                    MGR_AppData.HkTelemetryPkt.SpacecraftMode = MGR_IDLE_MODE;
+                    MGR_SaveHkFile();
+                    CFE_EVS_SendEvent(MGR_CMD_EXITSAFE_INF_EID, CFE_EVS_EventType_INFORMATION,
+                                      "MGR: EXIT_SAFE accepted; mode [%d] -> IDLE [%d]", previous_mode, MGR_IDLE_MODE);
                 }
                 else
                 {
-                    MGR_AppData.HkTelemetryPkt.CommandErrorCount++;
-                    CFE_EVS_SendEvent(MGR_CMD_SETMODE_ERR_EID, CFE_EVS_EventType_ERROR,
-                                      "MGR: Exit safe mode command received but not in safe mode, mode remains [%d]",
+                    MGR_RecordModeCommandError();
+                    CFE_EVS_SendEvent(MGR_CMD_EXITSAFE_ERR_EID, CFE_EVS_EventType_ERROR,
+                                      "MGR: EXIT_SAFE rejected outside safe modes; mode remains [%d]",
                                       MGR_AppData.HkTelemetryPkt.SpacecraftMode);
                 }
             }
@@ -545,23 +548,24 @@ void MGR_ResetCounters(void)
 */
 void MGR_SaveHkFile(void)
 {
-    int32     status = OS_SUCCESS;
+    const char *pending_path = MGR_CFG_FILE_PATH ".tmp";
     osal_id_t osal_fd;
 
-    status = OS_OpenCreate(&osal_fd, MGR_CFG_FILE_PATH, OS_FILE_FLAG_CREATE | OS_FILE_FLAG_TRUNCATE, OS_READ_WRITE);
-    if (status != OS_SUCCESS)
+    /* Replace the previous snapshot only after a complete write. A restart
+     * must never restore a partially written packet. */
+    if (OS_OpenCreate(&osal_fd, pending_path, OS_FILE_FLAG_CREATE | OS_FILE_FLAG_TRUNCATE, OS_WRITE_ONLY) == OS_SUCCESS)
     {
-        OS_printf("MGR Error: Cannot Open %s for writing. Error = %d \n", MGR_CFG_FILE_PATH, (int32)osal_fd);
-    }
-    else
-    {
-        status = OS_write(osal_fd, &MGR_AppData.HkTelemetryPkt, sizeof(MGR_Hk_tlm_t));
-        if (status != sizeof(MGR_Hk_tlm_t))
+        int32 written = OS_write(osal_fd, &MGR_AppData.HkTelemetryPkt, sizeof(MGR_Hk_tlm_t));
+        int32 closed = OS_close(osal_fd);
+        if (written == sizeof(MGR_Hk_tlm_t) && closed == OS_SUCCESS &&
+            OS_rename(pending_path, MGR_CFG_FILE_PATH) == OS_SUCCESS)
         {
-            OS_printf("MGR Error: Hk packet not written to file\n");
+            return;
         }
-        OS_close(osal_fd);
     }
+    OS_remove(pending_path);
+    CFE_EVS_SendEvent(MGR_HK_SAVE_ERR_EID, CFE_EVS_EventType_ERROR, "MGR: Could not save mode [%d] to %s",
+                      MGR_AppData.HkTelemetryPkt.SpacecraftMode, MGR_CFG_FILE_PATH);
 }
 
 /*
@@ -569,62 +573,50 @@ void MGR_SaveHkFile(void)
 */
 void MGR_RestoreHkFile(void)
 {
-    int32     status = OS_SUCCESS;
     osal_id_t osal_fd;
-    int32     size_read;
-    OS_time_t temp_time;
+    int32     size_read = 0;
 
-    status = OS_OpenCreate(&osal_fd, MGR_CFG_FILE_PATH, OS_FILE_FLAG_NONE, OS_READ_ONLY);
-    if (status != OS_SUCCESS)
-    {
-        OS_printf("MGR: Restore Hk packet Error: Cannot Open %s for reading\n", MGR_CFG_FILE_PATH);
-        OS_printf("      Cleaning up and recreating file\n");
-        /* Clean up and re-create the file */
-        OS_remove(MGR_CFG_FILE_PATH);
-        OS_OpenCreate(&osal_fd, MGR_CFG_FILE_PATH, OS_FILE_FLAG_CREATE | OS_FILE_FLAG_TRUNCATE, OS_READ_WRITE);
-        OS_write(osal_fd, &MGR_AppData.HkTelemetryPkt, sizeof(MGR_Hk_tlm_t));
-
-        /* Initialize packet */
-        CFE_MSG_Init(CFE_MSG_PTR(MGR_AppData.HkTelemetryPkt.TlmHeader), CFE_SB_ValueToMsgId(MGR_HK_TLM_MID),
-                     MGR_HK_TLM_LNGTH);
-    }
-    else
+    if (OS_OpenCreate(&osal_fd, MGR_CFG_FILE_PATH, OS_FILE_FLAG_NONE, OS_READ_ONLY) == OS_SUCCESS)
     {
         size_read = OS_TimedRead(osal_fd, &MGR_AppData.HkTelemetryPkt, sizeof(MGR_Hk_tlm_t), 500);
-        if (size_read != sizeof(MGR_Hk_tlm_t))
-        {
-            OS_printf("MGR: Restore Hk packet error: OS_read returned error\n");
-            memset(&MGR_AppData.HkTelemetryPkt, 0, sizeof(MGR_Hk_tlm_t));
-
-            /* Initialize packet */
-            CFE_MSG_Init(CFE_MSG_PTR(MGR_AppData.HkTelemetryPkt.TlmHeader), CFE_SB_ValueToMsgId(MGR_HK_TLM_MID),
-                         MGR_HK_TLM_LNGTH);
-        }
+        OS_close(osal_fd);
     }
-    OS_close(osal_fd);
-
-    /*
-    ** Make sure the SpacecraftMode is valid and set boot counters
-    **/
-    if ((MGR_AppData.HkTelemetryPkt.SpacecraftMode != MGR_SAFE_REBOOT_MODE) &&
-        (MGR_AppData.HkTelemetryPkt.SpacecraftMode != MGR_SCIENCE_REBOOT_MODE))
+    if (size_read != sizeof(MGR_Hk_tlm_t))
     {
-        MGR_AppData.HkTelemetryPkt.SpacecraftMode = MGR_SAFE_REBOOT_MODE;
-        MGR_AppData.HkTelemetryPkt.AnomRebootCtr++;
-        OS_printf("MGR: Restore Hk Packet error: Anomalous reboot, returning to SAFE MODE\n");
+        memset(&MGR_AppData.HkTelemetryPkt, 0, sizeof(MGR_Hk_tlm_t));
     }
-    else
+
+    /* Always reinitialize the telemetry message header after restoring data. */
+    CFE_MSG_Init(CFE_MSG_PTR(MGR_AppData.HkTelemetryPkt.TlmHeader), CFE_SB_ValueToMsgId(MGR_HK_TLM_MID),
+                 MGR_HK_TLM_LNGTH);
+
+    if (MGR_AppData.HkTelemetryPkt.SpacecraftMode == MGR_SAFE_REBOOT_MODE)
     {
         MGR_AppData.HkTelemetryPkt.BootCounter++;
     }
+    else
+    {
+        /* A saved non-safe mode may predate a failed write on entry to SAFE.
+         * Preserve SAFE itself and latch all other restart states in SAFE_REBOOT. */
+        if (MGR_AppData.HkTelemetryPkt.SpacecraftMode != MGR_SAFE_MODE)
+        {
+            MGR_AppData.HkTelemetryPkt.SpacecraftMode = MGR_SAFE_REBOOT_MODE;
+        }
+        MGR_AppData.HkTelemetryPkt.AnomRebootCtr++;
+        OS_printf("MGR: Anomalous reboot, mode [%d]\n", MGR_AppData.HkTelemetryPkt.SpacecraftMode);
+    }
 
-    /*
-     * Set the time with the boot offset
-     */
-    OS_GetLocalTime(&temp_time);
-    temp_time.ticks = temp_time.ticks + MGR_CFG_REBOOT_TIME_TIC_OFFSET + MGR_AppData.HkTelemetryPkt.TimeTics;
-    OS_SetLocalTime(&temp_time);
-    OS_printf("MGR: Calling OS_SetLocalTime with ticks: %ld\n", MGR_AppData.HkTelemetryPkt.TimeTics);
+#if MGR_CFG_RESTORE_LOCAL_TIME
+    /* The physical MK3 uses its existing OS wall clock across restarts. */
+    OS_time_t temp_time = {0};
+
+    if (OS_GetLocalTime(&temp_time) == OS_SUCCESS &&
+        (MGR_CFG_REBOOT_TIME_TIC_OFFSET != 0 || MGR_AppData.HkTelemetryPkt.TimeTics != 0))
+    {
+        temp_time.ticks += MGR_CFG_REBOOT_TIME_TIC_OFFSET + MGR_AppData.HkTelemetryPkt.TimeTics;
+        OS_SetLocalTime(&temp_time);
+    }
+#endif
 }
 
 /*
@@ -640,7 +632,7 @@ int32 MGR_VerifyCmdLength(CFE_MSG_Message_t *msg, uint16 expected_length)
     CFE_MSG_GetSize(msg, &actual_length);
     if (expected_length == actual_length)
     {
-        /* Increment the command counter upon receipt of an invalid command */
+        /* Count valid length until the command-specific validation runs. */
         MGR_AppData.HkTelemetryPkt.CommandCount++;
     }
     else
@@ -649,7 +641,7 @@ int32 MGR_VerifyCmdLength(CFE_MSG_Message_t *msg, uint16 expected_length)
         CFE_MSG_GetFcnCode(msg, &cmd_code);
 
         CFE_EVS_SendEvent(MGR_LEN_ERR_EID, CFE_EVS_EventType_ERROR,
-                          "Invalid msg length: ID = 0x%X,  CC = %d, Len = %ld, Expected = %d",
+                          "Invalid msg length: ID = 0x%X,  CC = %d, Len = %zu, Expected = %d",
                           CFE_SB_MsgIdToValue(msg_id), cmd_code, actual_length, expected_length);
 
         status = OS_ERROR;

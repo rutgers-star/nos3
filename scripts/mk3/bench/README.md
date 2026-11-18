@@ -5,8 +5,8 @@ For the payload link on the bench: the busOBC (NanoCom SDR MK3) on J14, RS-422 t
 | Directory | Runs on | What |
 | --- | --- | --- |
 | `pi/` | the machine with the SDR's FTDI cable on J1 | `sdr` (shared console), `sdr-deploy` (copy a package over the console), `uart-stats` and `uart-watch` (Pi link UART), `console-relay` |
-| `sdr/` | the SDR | `bench.sh`: `status`, `cfs_start`, `cfs_stop`, `mon`, `hk`, `pingpi`, `picmd`, `events` |
-| `laptop/` | the laptop running OpenC3 | `sdr-link` (tunnel from OpenC3 to cFS over J1, plus a link monitor), `sdr-link-check` (60-check rehearsal), `link-fault` (bad frames from the Pi), `sdr-link-via-pi` (cable on the Pi instead) |
+| `sdr/` | the SDR | `bench.sh`: `status`, `cfs_start`, `cfs_stop`, `mon`, `hk`, `mgr_hk`, `pingpi`, `picmd`, `events` |
+| `laptop/` | the laptop running OpenC3 | `sdr-link` (tunnel from OpenC3 to cFS over J1, plus a link monitor), `sdr-link-check` (bench rehearsal), `link-fault` (bad frames from the Pi), `sdr-link-via-pi` (cable on the Pi instead) |
 | `openc3/` | the laptop | `install.sh` loads the `openc3-cosmos-star-bench` plugin: targets BUSOBC, PAYOBC, GROUND and four screens |
 
 ## Demo from OpenC3
@@ -24,5 +24,7 @@ scripts/mk3/bench/laptop/sdr-link-check   # in a second terminal, alone: want "F
 ```
 
 Then OpenC3 at http://localhost:2900, Telemetry Viewer, screen PAYOBC LINK.
+
+The `link` profile starts MGR. Use **Refresh MGR housekeeping** on BUSOBC HEALTH or send `BUSOBC MGR_REQ_HK` in Command Sender. Each request writes `cpu1/cf/mgr.bin` in the extracted release. The rehearsal requests MGR housekeeping and sends a NOOP. The operator sends `BUSOBC MGR_EXIT_SAFE` manually when the mode test calls for it.
 
 Limits worth stating in a review: there is no radio in this path (J1 stands in for the ground link); the link monitor (`LINK_STATE`, `UNANSWERED`) runs on the laptop, because the flight software has no payload link watchdog yet; the Pi's payload application is a stand-in, so its temperature, storage, attitude requests and bulk data are placeholders or test patterns.

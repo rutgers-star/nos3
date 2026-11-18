@@ -1,7 +1,7 @@
 # NanoCom SDR MK3 ARM builds. MK3_PROFILE picks what is built:
 #   base  cFS with ci_lab and to_lab
 #   star  every STAR hardware module compiled and packaged, none auto-started
-#   link  ci_lab, to_lab and payload_if, started: the busOBC end of the payload link (J14)
+#   link  ci_lab, to_lab, MGR and payload_if started on the busOBC bench
 # MK3_TOOLCHAIN picks the compiler: mk3-arm (GomSpace SDK or local Yocto tree, the default)
 # or mk3-armhf (Debian's cross compiler, in the container `make fsw-mk3` uses).
 if(NOT DEFINED MK3_PROFILE)
@@ -63,11 +63,10 @@ if(MK3_PROFILE STREQUAL "star")
     "${CMAKE_CURRENT_LIST_DIR}/../../components/payload_if/fsw/cfs/platform_inc"
   )
 elseif(MK3_PROFILE STREQUAL "link")
-  # payload_if is started by link_cfe_es_startup.scr, which cpu1/install_custom.cmake installs
-  # in place of cpu1_cfe_es_startup.scr
-  list(APPEND cpu1_APPLIST hwlib payload_if/fsw/cfs)
+  # The link startup script starts MGR and payload_if alongside the lab apps.
+  list(APPEND cpu1_APPLIST hwlib mgr/fsw/cfs payload_if/fsw/cfs)
   set(cpu1_FILELIST)
-  # payload_if_app.h includes mgr_msg.h, so MGR's headers are needed although MGR is not built
+  # payload_if includes MGR headers, and the TO_LAB table subscribes to MGR housekeeping.
   set(APPLICATION_PLATFORM_INC_LIST
     "${CMAKE_CURRENT_LIST_DIR}/../../fsw/apps/hwlib/fsw/public_inc"
     "${CMAKE_CURRENT_LIST_DIR}/../../components/mgr/fsw/cfs/src"

@@ -19,4 +19,8 @@
 #define MGR_CFG_FILE_PATH              "/data/mgr.bin"
 #endif
 
+#ifndef MGR_CFG_RESTORE_LOCAL_TIME
+#define MGR_CFG_RESTORE_LOCAL_TIME 1
+#endif
+
 #endif /* _MGR_PLATFORM_CFG_H_ */

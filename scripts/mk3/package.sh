@@ -12,7 +12,7 @@ mk3_sbtool="$mk3_build/exe/bin/sbtool"
 case "$mk3_profile" in
     base) mk3_expected_modules=(ci_lab to_lab) ;;
     star) mk3_expected_modules=(ci_lab to_lab hwlib generic_eps tmp100 thermal_control payload_if raspberry_pi mgr) ;;
-    link) mk3_expected_modules=(ci_lab to_lab hwlib payload_if) ;;
+    link) mk3_expected_modules=(ci_lab to_lab hwlib mgr payload_if) ;;
 esac
 # Debian's cross toolchain keeps the target C library outside a sysroot, and its other target
 # libraries (libsocketcan) under the multiarch directory
@@ -30,6 +30,9 @@ fi
 mk3_sysroot=${MK3_SYSROOT:-}
 [[ -d "$mk3_cpu/cf" && -x "$mk3_cpu/core-cpu1" && -x "$mk3_sbtool" && -f "$mk3_build/source-built.txt" ]] || {
     echo "MK3 install tree missing; run scripts/mk3/build.sh first" >&2; exit 2;
+}
+[[ ! -e "$mk3_cpu/cf/mgr.bin" && ! -L "$mk3_cpu/cf/mgr.bin" ]] || {
+    echo "Move the MGR runtime state out of the install tree before packaging: $mk3_cpu/cf/mgr.bin" >&2; exit 2;
 }
 [[ -d "$mk3_sysroot" ]] || {
     echo "Set MK3_YOCTO_ROOT or MK3_SYSROOT to locate the matching GomSpace 4.1.4 target sysroot" >&2; exit 2;
@@ -68,6 +71,10 @@ for mk3_elf in "$mk3_cpu/core-cpu1" "$mk3_sbtool" "${mk3_modules[@]}"; do
 done
 
 [[ -f "$mk3_cpu/cf/cfe_es_startup.scr" ]] || { echo "Startup script absent" >&2; exit 2; }
+if [[ "$mk3_profile" == link ]] && ! awk -F '[, ]+' '/^CFE_APP/ && $2 == "mgr" && $3 == "MGR_AppMain" { found=1 } END { exit !found }' "$mk3_cpu/cf/cfe_es_startup.scr"; then
+    echo "MGR startup entry absent from link profile" >&2
+    exit 2
+fi
 while IFS= read -r mk3_app; do
     [[ -f "$mk3_cpu/cf/$mk3_app.so" ]] || {
         echo "Startup module absent from install tree: $mk3_app" >&2; exit 2;
@@ -143,6 +150,7 @@ mk3_startup=$(awk -F '[, ]+' '/^CFE_APP/ {printf "%s ", $2}' "$mk3_stage/cpu1/cf
     fi
     if [[ "$mk3_profile" == link ]]; then
         echo "payload_if starts on /dev/ttyS3 (J14). Start cFS only once pl-rs422.service is active."
+        echo "MGR starts and stores its state in cpu1/cf/mgr.bin. Start from a writable release."
         echo "bin/sbtool and scripts/mk3/bench drive it from the board's shell or from OpenC3."
     fi
 } > "$mk3_stage/README.txt"
