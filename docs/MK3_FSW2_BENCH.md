@@ -13,6 +13,6 @@
 | An invalid mode, unknown command code, and `EXIT_SAFE` with an extra payload byte | The mode stays latched. Capture the error event and counter. |
 | Operator sends `BUSOBC MGR_EXIT_SAFE` once with no payload | `MGR_HK` changes to `IDLE` and MGR emits an exit acceptance event. A repeat outside Safe is rejected and leaves `IDLE`. |
 
-For raw test packets from the board console use the verified package's `bin/sbtool`. With `$SBTOOL` set to that binary, examples are `$SBTOOL cmd 0x18F8 9 01` (science status), `$SBTOOL cmd 0x18F8 4` (science pass), `$SBTOOL cmd 0x18F8 2 FF` (invalid mode), `$SBTOOL cmd 0x18F8 127` (unknown command), and `$SBTOOL cmd 0x18F8 10 00` (malformed exit). Send the valid exit explicitly from the operator console after the hold checks.
+Use a separate board shell for raw commands while the OpenC3 tunnel owns the serial console. With `$SBTOOL` set to the verified package's `bin/sbtool`, examples are `$SBTOOL cmd 0x18F8 9 01` (science status), `$SBTOOL cmd 0x18F8 4` (science pass), `$SBTOOL cmd 0x18F8 2 FF` (invalid mode), `$SBTOOL cmd 0x18F8 127` (unknown command), and `$SBTOOL cmd 0x18F8 10 00` (malformed exit). Send the valid exit explicitly from the operator console after the hold checks.
 
 Record expected and observed modes, command and event timestamps, board/image ID, and any discrepancies. Attach the signed as-run procedure and logs to the verification record. Keep FSW-2 open until the hardware evidence is reviewed.

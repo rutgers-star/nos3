@@ -114,7 +114,7 @@ class Link:
             pass
         self.tlm.setblocking(True)
 
-    def collect(self, mid, seconds, count=None, inner_mid=None):
+    def collect(self, mid, seconds, count=None, inner_mid=None, inner_sequences=None):
         """Packets with the given message ID received within the window."""
         found = []
         deadline = time.monotonic() + seconds
@@ -130,6 +130,8 @@ class Link:
                 if len(pkt) < WRAPPER_HEADER_LEN + 6:
                     continue
                 if struct.unpack_from(">H", pkt, WRAPPER_HEADER_LEN)[0] != inner_mid:
+                    continue
+                if inner_sequences is not None and sequence(pkt) not in inner_sequences:
                     continue
             found.append(pkt)
         return found
@@ -160,8 +162,9 @@ class Link:
             log(f"      downlink {hexs(p)}")
         return pkts
 
-    def next_heartbeat(self):
-        pkts = self.collect(PAYOBC_WRAPPER_MID, 5, count=1, inner_mid=PAYOBC_HEARTBEAT)
+    def next_heartbeat(self, inner_sequences=None):
+        pkts = self.collect(PAYOBC_WRAPPER_MID, 5, count=1, inner_mid=PAYOBC_HEARTBEAT,
+                            inner_sequences=inner_sequences)
         return heartbeat(pkts[0]) if pkts else None
 
 
@@ -253,7 +256,8 @@ def main():
 
     log("== 9. Simulator reset to a known seed")
     link.sim("RESET=0x100")
-    beat = link.next_heartbeat()
+    # The downlink can still contain a heartbeat sent before the reset.
+    beat = link.next_heartbeat(inner_sequences=range(0x100, 0x110))
     check(beat is not None and beat[1:3] == (0, 0), f"reset returns the heartbeat to idle ({beat})")
     pkts = link.exchange(13, 12)
     check(len(pkts) == 1 and is_response(pkts[0]) and 0x100 <= sequence(pkts[0]) < 0x110,
