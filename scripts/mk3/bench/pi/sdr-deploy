@@ -34,7 +34,7 @@ case "$NAME" in
         PKG=${NAME%.tar.gz}
         REMOTE=$DATA/star-test/$NAME
         DEST=$DATA/star/$PKG
-        printf 'unpack\t60\tmkdir -p %s && tar -xzf %s -C %s && cd %s && sha256sum -c SHA256SUMS; cd /\n' \
+        printf 'unpack\t60\tmkdir -p %s && tar -xzf %s -C %s && (cd %s && sha256sum -c SHA256SUMS)\n' \
             "$DATA/star/$PKG" "$REMOTE" "$DATA/star/$PKG" "$DATA/star/$PKG" > "$WORK/cmds.tsv"
         ;;
     *)
@@ -48,10 +48,6 @@ python3 "$HERE/push_and_run.py" "$DEV" "$FILE" "$REMOTE" "$WORK/console.log" "$W
 STATUS=$?
 echo
 sed -n '/=== sha256/,$p' "$WORK/result.txt"
-# A package that arrives intact but fails its own checksums is still a failure
-if [ $STATUS -eq 0 ] && grep -q 'FAILED' "$WORK/result.txt"; then
-    STATUS=5
-fi
 if [ $STATUS -eq 0 ]; then
     rm -rf "$WORK"
     echo "Done: $DEST"

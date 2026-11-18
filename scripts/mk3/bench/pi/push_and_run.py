@@ -5,12 +5,13 @@ Usage: push_and_run.py PORT LOCAL_FILE REMOTE_PATH LOG OUT CMD_TSV
   CMD_TSV lines are "name<TAB>timeout_seconds<TAB>command" (THREE columns, unlike probe.py)
 
 The file is decoded on the board by `base64 -d`, then its sha256 is compared on both
-ends. Throughput is about 2.5 KB/s (a 200 KB package takes about 80 s), so strip
-binaries first.
+ends. A failed or timed-out remote command aborts the deployment. Throughput is
+about 2.5 KB/s (a 200 KB package takes about 80 s), so strip binaries first.
 """
 import base64
 import hashlib
 import os
+import re
 import select
 import sys
 import termios
@@ -36,9 +37,9 @@ class Console:
 
     def drain(self, seconds):
         buf = b""
-        deadline = time.time() + seconds
+        deadline = time.monotonic() + seconds
         while True:
-            left = deadline - time.time()
+            left = deadline - time.monotonic()
             if left <= 0:
                 return buf
             ready, _, _ = select.select([self.fd], [], [], min(left, 0.05))
@@ -47,29 +48,36 @@ class Console:
                 self.log.write(chunk)
                 buf += chunk
 
-    def read_until(self, needle, timeout):
-        buf = b""
-        deadline = time.time() + timeout
-        while time.time() < deadline:
-            buf += self.drain(0.2)
-            if needle in buf:
-                buf += self.drain(0.3)
-                return buf, True
-        return buf, False
-
     def send(self, data):
         for i in range(0, len(data), 32):
             os.write(self.fd, data[i:i + 32])
             time.sleep(0.004)
 
     def run(self, idx, cmd, timeout):
-        start, end = "__S_%d__" % idx, "__E_%d__" % idx
-        self.send(('echo __S""_%d__; %s; echo __E""_%d__\r' % (idx, cmd, idx)).encode())
-        buf, ok = self.read_until(end.encode(), timeout)
+        # Split each marker in the shell input so an echo of the typed command
+        # cannot be mistaken for a completion marker.
+        self.send(
+            (f"printf '\\n%s\\n' __S''_{idx}__; {cmd}; "
+             f"printf '\\n__E''_{idx}__=%s\\n' \"$?\"\r").encode()
+        )
+        result = re.compile(
+            rf"^__S_{idx}__\r?\n(.*?)^__E_{idx}__=(\d+)\r?\n".encode(),
+            re.MULTILINE | re.DOTALL,
+        )
+        buf = b""
+        deadline = time.monotonic() + timeout
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            buf += self.drain(min(0.2, remaining))
+            match = result.search(buf)
+            if match:
+                self.drain(0.3)
+                output = match[1].decode(errors="replace").replace("\r", "").strip("\n")
+                return output, int(match[2])
         text = buf.decode(errors="replace").replace("\r", "")
-        if ok and start in text:
-            return text.split(start, 1)[1].split(end, 1)[0].strip("\n"), True
-        return "!! TIMEOUT or markers missing; raw:\n" + text, False
+        return "!! TIMEOUT or markers missing; raw:\n" + text, None
 
 
 def main():
@@ -89,9 +97,9 @@ def main():
             print("ABORT: no shell prompt. Last line: %r" % last)
             return 2
 
-        body, ok = con.run(0, "mkdir -p %s && echo dir-ok" % os.path.dirname(REMOTE), 15)
+        body, status = con.run(0, "mkdir -p %s" % os.path.dirname(REMOTE), 15)
         out.write("=== mkdir ===\n%s\n" % body)
-        if "dir-ok" not in body:
+        if status != 0:
             print("ABORT: could not create remote directory")
             return 3
 
@@ -109,9 +117,9 @@ def main():
         con.drain(2.0)
         print("transfer took %.1f s" % (time.time() - t0), flush=True)
 
-        body, ok = con.run(1, "sha256sum %s" % REMOTE, 30)
+        body, status = con.run(1, "sha256sum %s" % REMOTE, 30)
         remote_sha = body.split()[0] if body.split() else ""
-        match = remote_sha == local_sha
+        match = status == 0 and remote_sha == local_sha
         out.write("=== sha256 ===\nlocal  %s\nremote %s\nmatch: %s\n\n" % (local_sha, body, match))
         print("sha256 match:", match, flush=True)
         if not match:
@@ -120,10 +128,18 @@ def main():
         with open(CMD_FILE) as f:
             cmds = [tuple(l.rstrip("\n").split("\t", 2)) for l in f if l.strip()]
         for i, (name, timeout, cmd) in enumerate(cmds, start=2):
-            body, ok = con.run(i, cmd, float(timeout))
-            out.write("=== %s ===\n$ %s\n%s\n\n" % (name, cmd, body))
+            body, status = con.run(i, cmd, float(timeout))
+            if status is None:
+                outcome = "TIMEOUT"
+            elif status != 0:
+                outcome = f"FAILED (remote exit {status})"
+            else:
+                outcome = "ok"
+            out.write(f"=== {name} ===\n$ {cmd}\n{body}\n{outcome}\n\n")
             out.flush()
-            print("%-16s %s" % (name, "ok" if ok else "TIMEOUT"), flush=True)
+            print("%-16s %s" % (name, outcome), flush=True)
+            if status != 0:
+                return 5
     os.close(fd)
     return 0
 

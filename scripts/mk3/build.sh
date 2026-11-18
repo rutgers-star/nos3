@@ -7,11 +7,12 @@ mk3_toolchain=${MK3_TOOLCHAIN:-mk3-arm}
 export MK3_PROFILE="$mk3_profile" MK3_TOOLCHAIN="$mk3_toolchain"
 export OSAL_EXT_SOURCE_DIR="$mk3_repo/cfg/mk3_osal"
 source "$mk3_repo/scripts/mk3/build-dir.sh"
+source "$mk3_repo/scripts/mk3/source-state.sh"
 if [[ "$mk3_profile" != base ]]; then
     export CFS_APP_PATH="$mk3_repo/components${CFS_APP_PATH:+:$CFS_APP_PATH}"
 fi
 mk3_sdk_env=${MK3_SDK_ENV:-}
-mk3_cc_flags=()
+mk3_cc_flags=(-mcpu=cortex-a9 -mfpu=neon -mfloat-abi=hard -mthumb)
 
 if [[ "$mk3_toolchain" == mk3-armhf ]]; then
     command -v arm-linux-gnueabihf-gcc > /dev/null || {
@@ -36,22 +37,19 @@ elif [[ -n "$mk3_sdk_env" ]]; then
     export MK3_SDK_CFLAGS="${CFLAGS:-}"
     export MK3_SDK_CXXFLAGS="${CXXFLAGS:-}"
 elif [[ -n "${MK3_YOCTO_ROOT:-}" ]]; then
-    mk3_yocto="$(cd "$MK3_YOCTO_ROOT" && pwd)"
-    mk3_tools="$mk3_yocto/build/tmp/sysroots-components/x86_64"
+    source "$mk3_repo/scripts/mk3/yocto-paths.sh"
+    mk3_tools="$mk3_yocto_tmp/sysroots-components/x86_64"
     mk3_cross="$mk3_tools/gcc-cross-arm/usr/bin/arm-gomspace-linux-gnueabi"
     mk3_binutils="$mk3_tools/binutils-cross-arm/usr/bin/arm-gomspace-linux-gnueabi"
     export MK3_CC="$mk3_cross/arm-gomspace-linux-gnueabi-gcc"
     export MK3_CXX="$mk3_cross/arm-gomspace-linux-gnueabi-g++"
-    export MK3_SYSROOT="$mk3_yocto/build/tmp/work/nanomind_z7030_nv3-gomspace-linux-gnueabi/nanocom-sdr-image/1.0-r0/recipe-sysroot"
+    export MK3_SYSROOT="$mk3_yocto_sysroot"
     mkdir -p "$mk3_build/binutils"
     ln -sfn "$mk3_binutils/arm-gomspace-linux-gnueabi-as" "$mk3_build/binutils/as"
     ln -sfn "$mk3_binutils/arm-gomspace-linux-gnueabi-ld" "$mk3_build/binutils/ld"
     export MK3_BINUTILS_DIR="$mk3_build/binutils"
     export MK3_SDK_CFLAGS=""
     export MK3_SDK_CXXFLAGS=""
-    if [[ "$mk3_profile" == star ]]; then
-        export MK3_SOCKETCAN_ROOT="$mk3_yocto/build/tmp/sysroots-components/cortexa9t2hf-neon/libsocketcan/usr"
-    fi
 else
     echo "Set MK3_SDK_ENV to the matching GomSpace 4.1.4 SDK setup file, or MK3_YOCTO_ROOT to its local Yocto build." >&2
     exit 2
@@ -62,13 +60,15 @@ if [[ "$mk3_toolchain" == mk3-arm ]]; then
         [[ -e "$mk3_path" ]] || { echo "Missing MK3 prerequisite: $mk3_path" >&2; exit 2; }
     done
     read -r -a mk3_sdk_cflags <<< "${MK3_SDK_CFLAGS:-}"
-    mk3_cc_flags=(--sysroot="$MK3_SYSROOT" -B"$MK3_BINUTILS_DIR/" "${mk3_sdk_cflags[@]}")
-    if [[ "$mk3_profile" == star ]]; then
+    mk3_cc_flags+=(--sysroot="$MK3_SYSROOT" -B"$MK3_BINUTILS_DIR/" "${mk3_sdk_cflags[@]}")
+    if [[ "$mk3_profile" != base ]]; then
         if [[ -z "${MK3_SOCKETCAN_ROOT:-}" ]]; then
-            if [[ -f "$MK3_SYSROOT/usr/include/libsocketcan.h" ]]; then
+            if [[ -f "$MK3_SYSROOT/usr/include/libsocketcan.h" && -e "$MK3_SYSROOT/usr/lib/libsocketcan.so" ]]; then
                 export MK3_SOCKETCAN_ROOT="$MK3_SYSROOT/usr"
+            elif [[ -n "${mk3_yocto_socketcan:-}" ]]; then
+                export MK3_SOCKETCAN_ROOT="$mk3_yocto_socketcan"
             else
-                echo "STAR build requires libsocketcan development headers and library; set MK3_SOCKETCAN_ROOT." >&2
+                echo "$mk3_profile build requires libsocketcan development headers and library; set MK3_SOCKETCAN_ROOT." >&2
                 exit 2
             fi
         fi
@@ -79,19 +79,22 @@ if [[ "$mk3_toolchain" == mk3-arm ]]; then
     fi
 fi
 
+mkdir -p "$mk3_build"
+rm -f "$mk3_build/source-built.txt"
+mk3_source_state > "$mk3_build/source-building.txt"
+
 # hwlib's Linux UART driver sets the baud rate before assigning c_cflag, which leaves every port
 # at B0. Until that is fixed upstream, build hwlib from a patched copy that CFS_APP_PATH finds
 # ahead of fsw/apps/hwlib, so the submodule itself stays untouched. The copy sits as deep as
 # fsw/apps/hwlib, because hwlib's CMakeLists.txt includes ../../../components/ComponentSettings.cmake.
 if [[ "$mk3_profile" != base ]]; then
-    mk3_patched="$mk3_repo/fsw/build-mk3-patched"
+    mk3_patched="$mk3_build/hwlib"
     rm -rf "$mk3_patched"
-    mkdir -p "$mk3_patched"
-    cp -a "$mk3_repo/fsw/apps/hwlib" "$mk3_patched/hwlib"
+    cp -a "$mk3_repo/fsw/apps/hwlib" "$mk3_patched"
     for mk3_patch in "$mk3_repo"/scripts/mk3/patches/hwlib/*.patch; do
-        patch -d "$mk3_patched/hwlib" -p1 --batch --forward --quiet < "$mk3_patch"
+        patch -d "$mk3_patched" -p1 --batch --forward --quiet < "$mk3_patch"
     done
-    export CFS_APP_PATH="$mk3_patched:$CFS_APP_PATH"
+    export CFS_APP_PATH="$mk3_build:$CFS_APP_PATH"
 fi
 
 echo "MK3 compiler: $MK3_CC"
@@ -100,6 +103,9 @@ echo "MK3 profile: $mk3_profile"
 echo "MK3 toolchain: $mk3_toolchain"
 "$MK3_CC" -dumpmachine
 
+# cFE's pinned host tools declare older policies. Propagate the CMake 4 floor
+# to cFE's nested host and target configurations without changing the submodules.
+export CMAKE_POLICY_VERSION_MINIMUM=${CMAKE_POLICY_VERSION_MINIMUM:-3.5}
 cmake -S "$mk3_repo/fsw/cfe" -B "$mk3_build" \
     -DMISSION_SOURCE_DIR="$mk3_repo/fsw" \
     -DMISSION_DEFS="$mk3_repo/cfg/mk3_defs" \
@@ -115,3 +121,8 @@ cmake --build "$mk3_build" --target mission-install --parallel "${MK3_JOBS:-4}"
 # (scripts/mk3/bench); package.sh ships it in bin/
 mkdir -p "$mk3_build/exe/bin"
 "$MK3_CC" "${mk3_cc_flags[@]}" -O2 -Wall -Wextra -o "$mk3_build/exe/bin/sbtool" "$mk3_repo/scripts/mk3/sbtool.c"
+mk3_current_source=$(mk3_source_state)
+[[ "$mk3_current_source" == "$(< "$mk3_build/source-building.txt")" ]] || {
+    echo "Source revision or tracked changes moved during the MK3 build; rerun build.sh" >&2; exit 2;
+}
+mv "$mk3_build/source-building.txt" "$mk3_build/source-built.txt"

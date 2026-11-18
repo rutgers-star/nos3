@@ -22,7 +22,7 @@ MK3_YOCTO_ROOT=/home/swcaskey/nanocom-sdr-sdk MK3_JOBS=4 \
   bash scripts/mk3/build.sh
 ```
 
-Set `MK3_PROFILE=star` on the same command to build STAR. The local Yocto STAR build also uses its staged `libsocketcan` development files. The two build directories stay separate.
+Set `MK3_PROFILE=link` or `MK3_PROFILE=star` on the same command to build that profile. Both profiles build `hwlib` and need `libsocketcan` development files. The script uses the Yocto component's staged copy when the library is missing from the recipe sysroot. For an installed SDK that lacks it, set `MK3_SOCKETCAN_ROOT` to the target prefix containing `include/libsocketcan.h` and `lib/libsocketcan.so`.
 
 `mission-install` places the complete base runtime in `fsw/build-mk3-localq/exe/cpu1`: `core-cpu1`, `cf/cfe_es_startup.scr`, `ci_lab.so`, `to_lab.so`, `cfe_assert.so`, and `to_lab_sub.tbl`. The `pc-linux` PSP maps the current directory's `./cf` to cFE's `/cf`, so start the core from the `cpu1` directory.
 
@@ -41,16 +41,16 @@ Both toolchains build `hwlib` from a patched copy (`scripts/mk3/patches/hwlib`),
 
 ## Validate and package
 
-Use the sysroot corresponding to the compiler used for the build. For the local Yocto build:
+Use the same profile and Yocto tree as the build:
 
 ```sh
-MK3_SYSROOT=/home/swcaskey/nanocom-sdr-sdk/build/tmp/work/nanomind_z7030_nv3-gomspace-linux-gnueabi/nanocom-sdr-image/1.0-r0/recipe-sysroot \
+MK3_PROFILE=link MK3_YOCTO_ROOT=/home/swcaskey/nanocom-sdr-sdk \
   bash scripts/mk3/package.sh
 ```
 
-For STAR, prefix that package command with `MK3_PROFILE=star MK3_SOCKETCAN_ROOT=/home/swcaskey/nanocom-sdr-sdk/build/tmp/sysroots-components/cortexa9t2hf-neon/libsocketcan/usr`. The generated base and STAR archives are in `dist/mk3/`; the reviewed files to copy to Windows are in `/home/swcaskey/Desktop/MK3_BASE_CFS_LOCALQ/` and `/home/swcaskey/Desktop/MK3_STAR_CFS_LOCALQ/`. The older folders without `LOCALQ` used kernel POSIX queues, retained the known startup failure, and were moved to Trash after the revised archives passed QEMU testing.
+Use `MK3_PROFILE=star` or `MK3_PROFILE=base` for those builds. With an installed SDK, set `MK3_SYSROOT` to its `SDKTARGETSYSROOT` and pass the same `MK3_SOCKETCAN_ROOT` used for the build, if applicable.
 
-For an installed SDK, `MK3_SYSROOT` is the value of its `SDKTARGETSYSROOT`. The package script checks ARM32 hard-float ELF files, the `/lib/ld-linux-armhf.so.3` interpreter, each declared target shared library, startup app files, and the TO_LAB table. It archives the whole `cpu1` tree with file permissions, a repository/submodule/configuration manifest, per-file MK3 source hashes, and SHA-256 checksums. Output is under `dist/mk3/` and is ignored by Git.
+The package script checks the ARM32 hard-float ABI and target library dependencies of the core, app modules, and `bin/sbtool`. It verifies the executable loader, startup app and library files, and the TO_LAB table. It archives the `cpu1` tree and `bin/sbtool` with file permissions, a source manifest, and SHA-256 checksums. Output is under `dist/mk3/` and is ignored by Git.
 
 The local build's core and app modules are ARM EABI5 hard-float ELF files. The core needs `libpthread.so.0`, `librt.so.1`, and `libc.so.6`; all were found in the matching local Yocto sysroot. Its highest required glibc symbol version is `GLIBC_2.34`. The physical board's dynamic loader reports glibc 2.36, satisfying this version requirement.
 

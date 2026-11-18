@@ -15,8 +15,8 @@
 **
 ** Consumes the BusOBC-to-PayOBC UART byte stream, decodes payload-link frames
 ** with the shared library, validates the CCSDS packet inside each frame, and
-** answers every accepted payload command (APID 0x010) with one PayOBC status
-** telemetry packet (APID 0x011). Outgoing bytes wait in a transmit queue and
+** answers payload commands (APID 0x010) with ACK/NACK (APID 0x012) and
+** sends a heartbeat (APID 0x011) each simulated second. Bytes are queued and
 ** leave through drain(), which models a UART that accepts a limited number of
 ** bytes per write.
 **
@@ -41,12 +41,7 @@ namespace Nos3
     class PayObcLinkModel
     {
     public:
-        /* Status telemetry user data field (big-endian), see README.md */
-        static const std::size_t STATUS_USER_DATA_LEN = 14;
         static const std::size_t CCSDS_PRIMARY_HEADER_LEN = 6;
-        static const std::size_t STATUS_PACKET_LEN = CCSDS_PRIMARY_HEADER_LEN + STATUS_USER_DATA_LEN;
-        static const std::uint8_t REPORT_COMMAND = 0x01;   /* Response to an accepted command */
-        static const std::uint8_t REPORT_REQUESTED = 0x02; /* Requested through simulator control */
 
         typedef std::function<void(const std::string &)> LogFn;
 
@@ -68,13 +63,16 @@ namespace Nos3
         /* Bytes waiting in the transmit queue. */
         std::size_t pending_tx_bytes(void) const;
 
-        /* Queue one status packet without a command (report type REPORT_REQUESTED). */
-        void request_status(void);
+        /* Advance the mission clock and heartbeat cadence by one simulation tick. */
+        void advance_time(std::uint64_t elapsed_us);
+
+        /* Queue a heartbeat immediately through simulator control. */
+        void request_heartbeat(void);
 
         /* Restore power-on state: counters, decoder, transmit queue, faults. */
         void reset(std::uint16_t seed);
 
-        /* One-shot fault injection, each applied to the next outgoing frame or packet. */
+        /* One-shot faults apply to the next command reply or requested heartbeat. */
         void corrupt_next_crc(void);
         void split_next_frame(std::size_t first_part_len); /* 0 splits the frame in half */
         void double_next_telemetry(void);
@@ -93,16 +91,20 @@ namespace Nos3
 
         void handle_frame(const std::uint8_t *body, std::size_t len);
         void handle_command(const std::uint8_t *body, std::size_t len);
-        void emit_status(std::uint8_t report_type, std::uint8_t opcode, std::uint16_t command_counter);
-        std::vector<std::uint8_t> build_status_packet(std::uint8_t report_type, std::uint8_t opcode,
-                                                      std::uint16_t command_counter);
-        std::vector<std::uint8_t> encode_frame(const std::vector<std::uint8_t> &packet);
+        void emit_heartbeat(bool apply_faults);
+        void emit_telemetry(std::uint16_t apid, const std::vector<std::uint8_t> &data, bool apply_faults);
+        std::vector<std::uint8_t> encode_telemetry(std::uint16_t apid, const std::vector<std::uint8_t> &data,
+                                                   bool apply_faults);
         void queue_frames(const std::vector<std::uint8_t> &frames, std::size_t split_at);
         void log(const std::string &message) const;
 
         plframe_decode_ctx_t _decoder;
         PayObcLinkCounters _counters;
         std::uint16_t _tx_sequence_count;
+        std::uint64_t _met_us;
+        std::uint64_t _heartbeat_elapsed_us;
+        std::uint8_t _op_state;
+        std::uint8_t _experiment_id;
         std::deque<TxSegment> _tx_queue;
         LogFn _log;
 
