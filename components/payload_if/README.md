@@ -37,8 +37,8 @@ the spacecraft's S-band packet dictionary:
 - downlink: `PAYLOAD_IF_PAYOBC_TLM_MID`, BusOBC receive timestamp, followed by
   the complete PayOBC CCSDS packet.
 
-OpenC3 command and telemetry definitions live under `gsw/PAYLOAD_IF`. The
-`PAYOBC_CMD` and `PAYOBC_STATUS` definitions exercise this encapsulation. The
+OpenC3 command and telemetry definitions live under `gsw/PAYLOAD_IF`.
+`PAYOBC_CMD`, `PAYOBC_HEARTBEAT`, and `PAYOBC_CMD_RESPONSE` use this encapsulation. The
 legacy YAMCS XTCE file is retained for NOS3 compatibility but is not the
 SPICEsat ground authority.
 

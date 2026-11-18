@@ -118,6 +118,11 @@ namespace Nos3
         (void)time;
         std::lock_guard<std::mutex> lock(_mutex);
 
+        if (_enabled)
+        {
+            _model.advance_time(_sim_microseconds_per_tick);
+        }
+
         if (!_enabled || _model.pending_tx_bytes() == 0)
         {
             /* An idle line does not bank credit for a later burst */
@@ -216,8 +221,8 @@ namespace Nos3
         }
         if (command.compare("SEND_STATUS") == 0)
         {
-            _model.request_status();
-            return "Status telemetry queued";
+            _model.request_heartbeat();
+            return "Heartbeat queued";
         }
         if (command.compare("CORRUPT_CRC") == 0)
         {

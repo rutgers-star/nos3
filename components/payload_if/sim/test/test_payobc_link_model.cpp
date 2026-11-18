@@ -3,8 +3,8 @@
 **
 ** Expected frames are literal byte vectors computed independently with
 ** Python binascii.crc_hqx (CRC-16/CCITT-FALSE over LENGTH + BODY), not with
-** the payload-link encoder under test. The command vector is the ICD RevB A1
-** frame test vector.
+** the payload-link encoder under test. Packet fields follow the Pi bench
+** command, response, and heartbeat definitions.
 */
 #include <gtest/gtest.h>
 
@@ -21,26 +21,22 @@ using Nos3::PayObcLinkModel;
 
 namespace
 {
-    /* ICD RevB A1: APID 0x010 telecommand, seq 0, opcode 0x20, counter 1, argument 1 */
-    const Bytes CMD_FRAME = {0x1A, 0xCF, 0xFC, 0x1D, 0x00, 0x0D, 0x10, 0x10, 0xC0, 0x00, 0x00,
-                             0x06, 0x20, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x9B, 0xBA};
+    /* Run Experiment (opcode 0x20) for IDs 1 and 2. */
+    const Bytes CMD_FRAME = {0x1A, 0xCF, 0xFC, 0x1D, 0x00, 0x0B, 0x10, 0x10, 0xC0, 0x00,
+                             0x00, 0x04, 0x20, 0x00, 0x00, 0x00, 0x01, 0x09, 0xCF};
+    const Bytes CMD2_FRAME = {0x1A, 0xCF, 0xFC, 0x1D, 0x00, 0x0B, 0x10, 0x10, 0xC0, 0x01,
+                              0x00, 0x04, 0x20, 0x00, 0x00, 0x00, 0x02, 0x7E, 0x7F};
 
-    /* Same command, sequence count 1, command counter 2 */
-    const Bytes CMD2_FRAME = {0x1A, 0xCF, 0xFC, 0x1D, 0x00, 0x0D, 0x10, 0x10, 0xC0, 0x01, 0x00,
-                              0x06, 0x20, 0x00, 0x02, 0x00, 0x00, 0x00, 0x01, 0x1A, 0x2D};
+    /* APID 0x012 ACK for opcode 0x20, with sequence counts 0 and 1. */
+    const Bytes RSP0_FRAME = {0x1A, 0xCF, 0xFC, 0x1D, 0x00, 0x08, 0x00, 0x12,
+                              0xC0, 0x00, 0x00, 0x01, 0x20, 0x00, 0x10, 0xB8};
+    const Bytes RSP1_FRAME = {0x1A, 0xCF, 0xFC, 0x1D, 0x00, 0x08, 0x00, 0x12,
+                              0xC0, 0x01, 0x00, 0x01, 0x20, 0x00, 0xBA, 0xE9};
 
-    /* Status response to CMD_FRAME after reset(0): seq 0, opcode 0x20, counter 1, accepted 1 */
-    const Bytes RSP0_FRAME = {0x1A, 0xCF, 0xFC, 0x1D, 0x00, 0x14, 0x00, 0x11, 0xC0, 0x00, 0x00, 0x0D, 0x01, 0x20,
-                              0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xF3, 0x68};
-
-    /* Status response to CMD2_FRAME following RSP0: seq 1, counter 2, accepted 2 */
-    const Bytes RSP1_FRAME = {0x1A, 0xCF, 0xFC, 0x1D, 0x00, 0x14, 0x00, 0x11, 0xC0, 0x01, 0x00, 0x0D, 0x01, 0x20,
-                              0x00, 0x02, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xB6, 0x34};
-
-    /* Requested status after reset(0x1234): seq 0x1234, report type 2, all counters zero */
-    const Bytes REQ_STATUS_SEED_FRAME = {0x1A, 0xCF, 0xFC, 0x1D, 0x00, 0x14, 0x00, 0x11, 0xD2, 0x34,
-                                         0x00, 0x0D, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                                         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0xFE};
+    /* Requested heartbeat after reset(0x1234): MET 0, idle, 36 C, 32000 MB. */
+    const Bytes REQ_HEARTBEAT_SEED_FRAME = {0x1A, 0xCF, 0xFC, 0x1D, 0x00, 0x18, 0x00, 0x11, 0xD2, 0x34,
+                                            0x00, 0x11, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                            0x00, 0x00, 0x42, 0x10, 0x00, 0x00, 0x00, 0x00, 0x7D, 0x00, 0x40, 0xAB};
 
     const std::size_t UNLIMITED = 1u << 20;
 
@@ -121,7 +117,7 @@ TEST(PayObcLinkModel, LiteralCommandProducesLiteralResponse)
     EXPECT_EQ(model.pending_tx_bytes(), 0u);
 }
 
-TEST(PayObcLinkModel, SequenceCountAndCounterAdvanceDeterministically)
+TEST(PayObcLinkModel, SequenceCountAdvancesDeterministically)
 {
     PayObcLinkModel model(0);
     feed(model, CMD_FRAME);
@@ -139,8 +135,8 @@ TEST(PayObcLinkModel, SequenceCountAndCounterAdvanceDeterministically)
 TEST(PayObcLinkModel, SequenceCountWrapsAt14Bits)
 {
     PayObcLinkModel model(0x3FFF);
-    model.request_status();
-    model.request_status();
+    model.request_heartbeat();
+    model.request_heartbeat();
     Decoded d = decode_all(model.drain(UNLIMITED));
     ASSERT_EQ(d.bodies.size(), 2u);
     EXPECT_EQ(d.bodies[0][2], 0xFF);
@@ -149,26 +145,23 @@ TEST(PayObcLinkModel, SequenceCountWrapsAt14Bits)
     EXPECT_EQ(d.bodies[1][3], 0x00);
 }
 
-TEST(PayObcLinkModel, MinimumAndMaximumBodySizesAccepted)
+TEST(PayObcLinkModel, RejectsShortAndOldCounterFormatCommands)
 {
     PayObcLinkModel model(0);
 
-    /* 7-byte body: primary header plus the opcode only; counter reports as 0 */
+    /* These frames meet the link length bounds but not the Pi command length. */
     feed(model, frame_of(command_packet(1)));
-    Decoded d = decode_all(model.drain(UNLIMITED));
-    ASSERT_EQ(d.bodies.size(), 1u);
-    EXPECT_EQ(d.bodies[0][7], 0x20); /* opcode */
-    EXPECT_EQ(d.bodies[0][8], 0x00); /* counter high */
-    EXPECT_EQ(d.bodies[0][9], 0x00); /* counter low */
-
-    /* 518-byte body: the payload-link maximum */
-    Bytes max_frame = frame_of(command_packet(PL_MAX_BODY_LEN - 6));
+    feed(model, frame_of(command_packet(7)));
+    const Bytes max_frame = frame_of(command_packet(PL_MAX_BODY_LEN - 6));
     ASSERT_EQ(max_frame.size(), static_cast<std::size_t>(PL_MAX_FRAME_LEN));
     feed(model, max_frame);
-    d = decode_all(model.drain(UNLIMITED));
-    ASSERT_EQ(d.bodies.size(), 1u);
-    EXPECT_EQ(model.counters().commands_accepted, 2u);
-    EXPECT_EQ(model.counters().packets_malformed, 0u);
+    EXPECT_EQ(model.counters().frames_received, 3u);
+    EXPECT_EQ(model.counters().commands_accepted, 0u);
+    EXPECT_EQ(model.counters().packets_malformed, 3u);
+    EXPECT_EQ(model.pending_tx_bytes(), 0u);
+
+    feed(model, CMD_FRAME);
+    EXPECT_EQ(model.drain(UNLIMITED), RSP0_FRAME);
 }
 
 TEST(PayObcLinkModel, InvalidPayloadLinkLengthResyncsAndRecovers)
@@ -181,9 +174,7 @@ TEST(PayObcLinkModel, InvalidPayloadLinkLengthResyncsAndRecovers)
     EXPECT_EQ(model.pending_tx_bytes(), 0u);
 
     feed(model, CMD_FRAME);
-    Decoded d = decode_all(model.drain(UNLIMITED));
-    ASSERT_EQ(d.bodies.size(), 1u);
-    EXPECT_EQ(d.bodies[0][15], 0x02); /* frames_resync low byte reported in telemetry */
+    EXPECT_EQ(model.drain(UNLIMITED), RSP0_FRAME);
 }
 
 TEST(PayObcLinkModel, FrameSplitAcrossEveryBoundaryIsAccepted)
@@ -247,10 +238,7 @@ TEST(PayObcLinkModel, BadCrcIsCountedAndNextFrameSucceeds)
 
     EXPECT_EQ(model.counters().frames_bad_crc, 1u);
     EXPECT_EQ(model.counters().commands_accepted, 1u);
-    Decoded d = decode_all(model.drain(UNLIMITED));
-    ASSERT_EQ(d.bodies.size(), 1u);
-    EXPECT_EQ(d.bodies[0][12], 0x00); /* frames_bad_crc reported as 1 */
-    EXPECT_EQ(d.bodies[0][13], 0x01);
+    EXPECT_EQ(model.drain(UNLIMITED), RSP0_FRAME);
 }
 
 TEST(PayObcLinkModel, CcsdsLengthMismatchIsDropped)
@@ -335,7 +323,7 @@ TEST(PayObcLinkModel, PartialOutputIsDeliveredAcrossWrites)
         collected.insert(collected.end(), chunk.begin(), chunk.end());
         writes++;
     }
-    EXPECT_EQ(writes, 6); /* 28 bytes in writes of at most 5 */
+    EXPECT_EQ(writes, 4); /* 16 bytes in writes of at most 5 */
     EXPECT_EQ(collected, RSP0_FRAME);
     EXPECT_TRUE(model.drain(5).empty());
 }
@@ -375,8 +363,8 @@ TEST(PayObcLinkModel, FaultSplitNextFrameAcrossWrites)
     feed(model, CMD2_FRAME);
     EXPECT_EQ(model.drain(UNLIMITED).size(), RSP1_FRAME.size() / 2);
     EXPECT_EQ(model.drain(UNLIMITED).size(), RSP1_FRAME.size() - RSP1_FRAME.size() / 2);
-    model.request_status();
-    EXPECT_EQ(model.drain(UNLIMITED).size(), RSP0_FRAME.size());
+    model.request_heartbeat();
+    EXPECT_EQ(model.drain(UNLIMITED).size(), REQ_HEARTBEAT_SEED_FRAME.size());
 }
 
 TEST(PayObcLinkModel, FaultDoubleNextTelemetryInOneWrite)
@@ -395,7 +383,7 @@ TEST(PayObcLinkModel, FaultDoubleNextTelemetryInOneWrite)
     /* Combined with a corrupt CRC: bad frame then valid frame in one write */
     model.double_next_telemetry();
     model.corrupt_next_crc();
-    model.request_status();
+    model.request_heartbeat();
     d = decode_all(model.drain(UNLIMITED));
     EXPECT_EQ(d.bad_crc, 1);
     EXPECT_EQ(d.bodies.size(), 1u);
@@ -413,7 +401,7 @@ TEST(PayObcLinkModel, FaultBadLengthNextPacket)
     const std::size_t implied = static_cast<std::size_t>((body[4] << 8) | body[5]) + 7;
     EXPECT_EQ(implied, body.size() + 1);
 
-    model.request_status();
+    model.request_heartbeat();
     d = decode_all(model.drain(UNLIMITED));
     ASSERT_EQ(d.bodies.size(), 1u);
     EXPECT_EQ(static_cast<std::size_t>((d.bodies[0][4] << 8) | d.bodies[0][5]) + 7, d.bodies[0].size());
@@ -431,7 +419,7 @@ TEST(PayObcLinkModel, FaultBadApidNextPacket)
     EXPECT_EQ(apid, STAR_APID_PAYLOAD_COMMAND);
     EXPECT_FALSE(star_payload_apid_allowed_pay_to_bus(apid));
 
-    model.request_status();
+    model.request_heartbeat();
     d = decode_all(model.drain(UNLIMITED));
     ASSERT_EQ(d.bodies.size(), 1u);
     EXPECT_EQ(d.bodies[0][1], STAR_APID_PAYLOAD_TELEMETRY);
@@ -458,10 +446,54 @@ TEST(PayObcLinkModel, ResetRestoresKnownStateAndSeed)
     EXPECT_EQ(model.next_sequence_count(), 0x1234u);
 
     /* No fault survives the reset and the partial frame is discarded */
-    model.request_status();
-    EXPECT_EQ(model.drain(UNLIMITED), REQ_STATUS_SEED_FRAME);
+    model.request_heartbeat();
+    EXPECT_EQ(model.drain(UNLIMITED), REQ_HEARTBEAT_SEED_FRAME);
 
     model.reset(0);
     feed(model, CMD_FRAME);
     EXPECT_EQ(model.drain(UNLIMITED), RSP0_FRAME);
+}
+
+TEST(PayObcLinkModel, HeartbeatCarriesTimeStateAndExperiment)
+{
+    PayObcLinkModel model;
+    feed(model, CMD2_FRAME);
+    EXPECT_EQ(model.drain(UNLIMITED), RSP0_FRAME);
+    model.advance_time(999000);
+    EXPECT_EQ(model.pending_tx_bytes(), 0u);
+    model.advance_time(1000);
+    const Decoded d = decode_all(model.drain(UNLIMITED));
+    const Bytes expected = {0x00, 0x11, 0xC0, 0x01, 0x00, 0x11,
+                            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0xE8,
+                            0x01, 0x02, 0x42, 0x10, 0x00, 0x00, 0x00, 0x00, 0x7D, 0x00};
+    EXPECT_EQ(d.bodies, std::vector<Bytes>{expected});
+}
+
+TEST(PayObcLinkModel, TimeSyncUsesAllFourArgumentBytesAndUnknownOpcodeNacks)
+{
+    PayObcLinkModel model;
+    feed(model, frame_of({0x10, 0x10, 0xC0, 0x00, 0x00, 0x04, 0x03, 0x01, 0x23, 0x45, 0x67}));
+    feed(model, frame_of(command_packet(5, 0x7E)));
+    model.request_heartbeat();
+
+    const Decoded d = decode_all(model.drain(UNLIMITED));
+    ASSERT_EQ(d.bodies.size(), 3u);
+    EXPECT_EQ(d.bodies[0], (Bytes{0x00, 0x12, 0xC0, 0x00, 0x00, 0x01, 0x03, 0x00}));
+    EXPECT_EQ(d.bodies[1], (Bytes{0x00, 0x12, 0xC0, 0x01, 0x00, 0x01, 0x7E, 0x01}));
+    EXPECT_EQ(d.bodies[2], (Bytes{0x00, 0x11, 0xC0, 0x02, 0x00, 0x11,
+                                0x00, 0x00, 0x00, 0x00, 0x01, 0x23, 0x45, 0x67,
+                                0x00, 0x00, 0x42, 0x10, 0x00, 0x00, 0x00, 0x00, 0x7D, 0x00}));
+}
+
+TEST(PayObcLinkModel, PeriodicHeartbeatDoesNotConsumeCommandFault)
+{
+    PayObcLinkModel model;
+    model.corrupt_next_crc();
+    model.advance_time(1000000);
+    feed(model, CMD_FRAME);
+
+    const Decoded d = decode_all(model.drain(UNLIMITED));
+    ASSERT_EQ(d.bodies.size(), 1u);
+    EXPECT_EQ(d.bodies[0][1], STAR_APID_PAYLOAD_TELEMETRY);
+    EXPECT_EQ(d.bad_crc, 1);
 }

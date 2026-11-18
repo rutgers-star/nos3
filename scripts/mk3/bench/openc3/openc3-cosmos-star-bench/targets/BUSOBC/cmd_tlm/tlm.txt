@@ -1,0 +1,230 @@
+TELEMETRY BUSOBC PAYLOAD_IF_HK LITTLE_ENDIAN "payload_if housekeeping"
+  APPEND_ID_ITEM CCSDS_STREAMID 16 UINT 0x0860 "CCSDS Packet Identification" BIG_ENDIAN
+  APPEND_ITEM    CCSDS_SEQUENCE 16 UINT "CCSDS Packet Sequence Control" BIG_ENDIAN
+  APPEND_ITEM    CCSDS_LENGTH   16 UINT "CCSDS Packet Data Length" BIG_ENDIAN
+  APPEND_ITEM    CCSDS_SECONDS  32 UINT "busOBC time (seconds)" BIG_ENDIAN
+  APPEND_ITEM    CCSDS_SUBSECS  16 UINT "busOBC time (subseconds)" BIG_ENDIAN
+  APPEND_ITEM    CCSDS_SPARE    32 UINT ""
+  APPEND_ITEM CMD_ERR_COUNT    8 UINT "Commands rejected by payload_if"
+    LIMITS DEFAULT 1 ENABLED -1 -1 0.5 0.5
+  APPEND_ITEM CMD_COUNT        8 UINT "Commands accepted by payload_if"
+  APPEND_ITEM FRAME_ERR_COUNT  8 UINT "Frames from the Pi rejected (bad CRC, length or packet)"
+    LIMITS DEFAULT 1 ENABLED -1 -1 0.5 0.5
+  APPEND_ITEM FRAME_COUNT      8 UINT "Frames from the Pi accepted (wraps at 256; counts link enables too)"
+  APPEND_ITEM LINK_ENABLED     8 UINT "RS-422 port state"
+    STATE DISABLED 0 YELLOW
+    STATE ENABLED  1 GREEN
+  APPEND_ITEM DEVICE_COUNTER  32 UINT "Reported device command counter"
+  APPEND_ITEM DEVICE_CONFIG   32 UINT "Reported device configuration"
+  APPEND_ITEM DEVICE_STATUS   32 UINT "Reported device status"
+  APPEND_ITEM HK_PERIOD       16 UINT "Seconds between periodic reports (needs the scheduler app, not on the bench)"
+    UNITS seconds s
+
+TELEMETRY BUSOBC EVENT LITTLE_ENDIAN "cFS event message"
+  APPEND_ID_ITEM CCSDS_STREAMID 16 UINT 0x0808 "CCSDS Packet Identification" BIG_ENDIAN
+  APPEND_ITEM    CCSDS_SEQUENCE 16 UINT "CCSDS Packet Sequence Control" BIG_ENDIAN
+  APPEND_ITEM    CCSDS_LENGTH   16 UINT "CCSDS Packet Data Length" BIG_ENDIAN
+  APPEND_ITEM    CCSDS_SECONDS  32 UINT "busOBC time (seconds)" BIG_ENDIAN
+  APPEND_ITEM    CCSDS_SUBSECS  16 UINT "busOBC time (subseconds)" BIG_ENDIAN
+  APPEND_ITEM    CCSDS_SPARE    32 UINT ""
+  APPEND_ITEM APP_NAME    160 STRING "Application that sent it"
+  APPEND_ITEM EVENT_ID     16 UINT "Event ID"
+  APPEND_ITEM EVENT_TYPE   16 UINT "Severity"
+    STATE DEBUG    1
+    STATE INFO     2
+    STATE ERROR    3 RED
+    STATE CRITICAL 4 RED
+  APPEND_ITEM SPACECRAFT_ID 32 UINT "Spacecraft ID"
+  APPEND_ITEM PROCESSOR_ID  32 UINT "Processor ID"
+  APPEND_ITEM MESSAGE      976 STRING "Event text"
+  APPEND_ITEM SPARE         16 UINT ""
+
+# ---- cFE housekeeping: real values from the flight computer, sent when asked for
+TELEMETRY BUSOBC CFE_ES_HK LITTLE_ENDIAN "Executive Services Housekeeping Packet"
+  APPEND_ID_ITEM CCSDS_STREAMID 16 UINT 0x0800 "CCSDS Packet Identification" BIG_ENDIAN
+  APPEND_ITEM CCSDS_SEQUENCE 16 UINT "CCSDS Packet Sequence Control" BIG_ENDIAN
+  APPEND_ITEM CCSDS_LENGTH 16 UINT "CCSDS Packet Data Length" BIG_ENDIAN
+  APPEND_ITEM CCSDS_SECONDS 32 UINT "CCSDS Telemetry Secondary Header (seconds)" BIG_ENDIAN
+  APPEND_ITEM CCSDS_SUBSECS 16 UINT "CCSDS Telemetry Secondary Header (subseconds)" BIG_ENDIAN
+  APPEND_ITEM CCSDS_SPARE 32 UINT ""
+  APPEND_ITEM CMDCOUNTER 8 UINT "The ES Application Command Counter."
+  APPEND_ITEM ERRCOUNTER 8 UINT "The ES Application Command Error Counter."
+
+  APPEND_ITEM CFECORECHECKSUM 16 UINT "Checksum of cFE Core Code."
+  APPEND_ITEM CFEMAJORVERSION 8 UINT "Major Version Number of cFE."
+  APPEND_ITEM CFEMINORVERSION 8 UINT "Minor Version Number of cFE."
+  APPEND_ITEM CFEREVISION 8 UINT "Sub-Minor Version Number of cFE."
+  APPEND_ITEM CFEMISSIONREVISION 8 UINT "Mission Version Number of cFE."
+
+  APPEND_ITEM OSALMAJORVERSION 8 UINT "OS Abstraction Layer Major Version Number."
+  APPEND_ITEM OSALMINORVERSION 8 UINT "OS Abstraction Layer Minor Version Number."
+  APPEND_ITEM OSALREVISION 8 UINT "OS Abstraction Layer Revision Number."
+  APPEND_ITEM OSALMISSIONREVISION 8 UINT "OS Abstraction Layer MissionRevision Number."
+
+  APPEND_ITEM PSP_MAJORVERSION 8 UINT "Platform Support Package Major Version Number."
+  APPEND_ITEM PSP_MINORVERSION 8 UINT "Platform Support Package Minor Version Number."
+  APPEND_ITEM PSP_REVISION 8 UINT "Platform Support Package Revision Number."
+  APPEND_ITEM PSP_MISSIONREVISION 8 UINT "Platform Support Package MissionRevision Number."
+
+  APPEND_ITEM SYSLOGBYTESUSED 32 UINT "Total number of bytes used in system log."
+  APPEND_ITEM SYSLOGSIZE 32 UINT "Total size of the system log."
+  APPEND_ITEM SYSLOGENTRIES 32 UINT "Number of entries in the system log."
+  APPEND_ITEM SYSLOGMODE 32 UINT "Write/Overwrite Mode."
+
+  APPEND_ITEM ERLOGINDEX 32 UINT "Current index of the ER Log (wraps around)."
+  APPEND_ITEM ERLOGENTRIES 32 UINT "Number of entries made in the ER Log since the power on."
+  APPEND_ITEM REGISTEREDCOREAPPS 32 UINT "Number of Applications registered with ES."
+  APPEND_ITEM REGISTEREDEXTERNALAPPS 32 UINT "Number of Applications registered with ES."
+  APPEND_ITEM REGISTEREDTASKS 32 UINT "Number of Tasks ( main AND child tasks ) registered with ES."
+  APPEND_ITEM REGISTEREDLIBS 32 UINT "Number of Libraries registered with ES."
+
+  APPEND_ITEM RESETTYPE 32 UINT "Reset type ( PROCESSOR or POWERON )."
+  APPEND_ITEM RESETSUBTYPE 32 UINT "Reset Sub Type."
+  APPEND_ITEM PROCESSORRESETS 32 UINT "Number of processor resets since last power on."
+  APPEND_ITEM MAXPROCESSORRESETS 32 UINT "Max processor resets before a power on is done."
+  APPEND_ITEM BOOTSOURCE 32 UINT "Boot source ( as provided from BSP )."
+
+  APPEND_ITEM PERFSTATE 32 UINT "Current state of Performance Analyzer."
+  APPEND_ITEM PERFMODE 32 UINT "Current mode of Performance Analyzer."
+  APPEND_ITEM PERFTRIGGERCOUNT 32 UINT "Number of Times Perfomance Analyzer has Triggered."
+  <% (1..4).each do |x| %>
+      APPEND_ITEM PERFFILTERMASK_<%= x %> 32 UINT "Current Setting of Performance Analyzer Filter <%= x %> Masks."
+  <% end %>
+  <% (1..4).each do |x| %>
+      APPEND_ITEM PERFTRIGGERMASK_<%= x %> 32 UINT "Current Setting of Performance Analyzer Trigger <%= x %> Masks."
+  <% end %>
+  APPEND_ITEM PERFDATASTART 32 UINT "Identifies First Stored Entry in Performance Analyzer Log."
+  APPEND_ITEM PERFDATAEND 32 UINT "Identifies Last Stored Entry in Performance Analyzer Log."
+  APPEND_ITEM PERFDATACOUNT 32 UINT "Number of Entries Put Into the Performance Analyzer Log."
+  APPEND_ITEM PERFDATATOWRITE 32 UINT "Number of Performance Analyzer Log Entries Left to be Written to Log Dump File."
+  APPEND_ITEM HEAPBYTESFREE 32 UINT "Number of free bytes remaining in the OS heap."
+  APPEND_ITEM HEAPBLOCKSFREE 32 UINT "Number of free blocks remaining in the OS heap."
+  APPEND_ITEM HEAPMAXBLOCKSIZE 32 UINT "Number of bytes in the largest free block."
+
+TELEMETRY BUSOBC CFE_EVS_HK LITTLE_ENDIAN "Event Services Housekeeping Telemetry Packet"
+  APPEND_ID_ITEM CCSDS_STREAMID 16 UINT 0x0801 "CCSDS Packet Identification" BIG_ENDIAN
+  APPEND_ITEM CCSDS_SEQUENCE 16 UINT "CCSDS Packet Sequence Control" BIG_ENDIAN
+  APPEND_ITEM CCSDS_LENGTH 16 UINT "CCSDS Packet Data Length" BIG_ENDIAN
+  APPEND_ITEM CCSDS_SECONDS 32 UINT "CCSDS Telemetry Secondary Header (seconds)" BIG_ENDIAN
+  APPEND_ITEM CCSDS_SUBSECS 16 UINT "CCSDS Telemetry Secondary Header (subseconds)" BIG_ENDIAN
+  APPEND_ITEM CCSDS_SPARE 32 UINT ""
+  APPEND_ITEM COMMANDCOUNTER 8 UINT "EVS Command Counter."
+  APPEND_ITEM COMMANDERRCOUNTER 8 UINT "EVS Command Error Counter."
+  APPEND_ITEM MESSAGEFORMATMODE 8 UINT "Event message format mode (short/long)."
+  APPEND_ITEM MESSAGETRUNCCOUNTER 8 UINT "Event message truncation counter."
+  APPEND_ITEM UNREGISTEREDAPPCOUNTER 8 UINT "Unregistered application message send counter."
+  APPEND_ITEM OUTPUTPORT 8 UINT "Output port mask."
+  APPEND_ITEM LOGFULLFLAG 8 UINT "Local event log full flag."
+  APPEND_ITEM LOGMODE 8 UINT "Local event logging mode (overwrite/discard)."
+  APPEND_ITEM MESSAGESENDCOUNTER 16 UINT "Event message send counter."
+  APPEND_ITEM LOGOVERFLOWCOUNTER 16 UINT "Local event log overflow counter."
+  APPEND_ITEM LOGENABLED 8 UINT "Current event log enable/disable state."
+  APPEND_ITEM SPARE1 8 UINT "Padding for 32 bit boundary."
+  APPEND_ITEM SPARE2 8 UINT "Padding for 32 bit boundary."
+  APPEND_ITEM SPARE3 8 UINT "Padding for 32 bit boundary."
+  <% (1..32).each do |x| %>
+      APPEND_ITEM APPDATA_<%= x %> 32 UINT "Array of registered application table data. byte <%= x %>"
+  <% end %>
+
+TELEMETRY BUSOBC CFE_SB_HK LITTLE_ENDIAN "Software Bus task housekeeping Packet"
+  APPEND_ID_ITEM CCSDS_STREAMID 16 UINT 0x0803 "CCSDS Packet Identification" BIG_ENDIAN
+  APPEND_ITEM CCSDS_SEQUENCE 16 UINT "CCSDS Packet Sequence Control" BIG_ENDIAN
+  APPEND_ITEM CCSDS_LENGTH 16 UINT "CCSDS Packet Data Length" BIG_ENDIAN
+  APPEND_ITEM CCSDS_SECONDS 32 UINT "CCSDS Telemetry Secondary Header (seconds)" BIG_ENDIAN
+  APPEND_ITEM CCSDS_SUBSECS 16 UINT "CCSDS Telemetry Secondary Header (subseconds)" BIG_ENDIAN
+  APPEND_ITEM CCSDS_SPARE 32 UINT ""
+  APPEND_ITEM COMMANDCNT 8 UINT "Count of valid commands received."
+  APPEND_ITEM CMDERRCNT 8 UINT "Count of invalid commands received."
+  APPEND_ITEM NOSUBSCRIBERSCNT 8 UINT "Count pkts sent with no subscribers."
+  APPEND_ITEM MSGSENDERRCNT 8 UINT "Count of message send errors."
+  APPEND_ITEM MSGRECEIVEERRCNT 8 UINT "Count of message receive errors."
+  APPEND_ITEM INTERNALERRCNT 8 UINT "Count of queue read or write errors."
+  APPEND_ITEM CREATEPIPEERRCNT 8 UINT "Count of errors in create pipe API."
+  APPEND_ITEM SUBSCRIBEERRCNT 8 UINT "Count of errors in subscribe API."
+  APPEND_ITEM SPARE 8 UINT "Spare Byte."
+  APPEND_ITEM DUPSUBSCRIPTIONSCNT 8 UINT "Count of duplicate subscriptions."
+  <% (1..2).each do |x| %>
+      APPEND_ITEM SPARE2ALIGN_<%= x %> 8 UINT "Spare bytes to ensure alignment. byte <%= x %>"
+  <% end %>
+  APPEND_ITEM PIPEOVERFLOWERRCNT 16 UINT "Count of pipe overflow errors."
+  APPEND_ITEM MSGLIMERRCNT 16 UINT "Count of msg id to pipe errors."
+  APPEND_ITEM MEMPOOLHANDLE 32 UINT "Handle to SB's Memory Pool."
+  APPEND_ITEM MEMINUSE 32 UINT "Memory in use."
+  APPEND_ITEM UNMARKEDMEM 32 UINT "cfg param CFE_SB_BUF_MEMORY_BYTES minus Peak Memory in use"
+
+TELEMETRY BUSOBC CFE_SB_STATS LITTLE_ENDIAN "SB Statistics Telemetry Packet"
+  APPEND_ID_ITEM CCSDS_STREAMID 16 UINT 0x080A "CCSDS Packet Identification" BIG_ENDIAN
+  APPEND_ITEM CCSDS_SEQUENCE 16 UINT "CCSDS Packet Sequence Control" BIG_ENDIAN
+  APPEND_ITEM CCSDS_LENGTH 16 UINT "CCSDS Packet Data Length" BIG_ENDIAN
+  APPEND_ITEM CCSDS_SECONDS 32 UINT "CCSDS Telemetry Secondary Header (seconds)" BIG_ENDIAN
+  APPEND_ITEM CCSDS_SUBSECS 16 UINT "CCSDS Telemetry Secondary Header (subseconds)" BIG_ENDIAN
+  APPEND_ITEM CCSDS_SPARE 32 UINT ""
+  APPEND_ITEM MSGIDSINUSE 32 UINT "Current number of MsgIds with a destination."
+  APPEND_ITEM PEAKMSGIDSINUSE 32 UINT "Peak number of MsgIds with a destination."
+  APPEND_ITEM MAXMSGIDSALLOWED 32 UINT "cFE Cfg Param CFE_SB_MAX_MSG_IDS"
+  APPEND_ITEM PIPESINUSE 32 UINT "Number of pipes currently in use."
+  APPEND_ITEM PEAKPIPESINUSE 32 UINT "Peak number of pipes since last reboot."
+  APPEND_ITEM MAXPIPESALLOWED 32 UINT "cFE Cfg Param CFE_SB_MAX_PIPES"
+  APPEND_ITEM MEMINUSE 32 UINT "Memory bytes currently in use for SB msg transfers."
+  APPEND_ITEM PEAKMEMINUSE 32 UINT "Peak memory bytes in use for SB msg transfers."
+  APPEND_ITEM MAXMEMALLOWED 32 UINT "cFE Cfg Param CFE_SB_BUF_MEMORY_BYTES"
+  APPEND_ITEM SUBSCRIPTIONSINUSE 32 UINT "Number of current subscriptions."
+  APPEND_ITEM PEAKSUBSCRIPTIONSINUSE 32 UINT "Peak number of subscriptions."
+  APPEND_ITEM MAXSUBSCRIPTIONSALLOWED 32 UINT "product of CFE_SB_MAX_MSG_IDS and CFE_SB_MAX_DEST_PER_PKT"
+  APPEND_ITEM SBBUFFERSINUSE 32 UINT "Number of SB message buffers currently in use."
+  APPEND_ITEM PEAKSBBUFFERSINUSE 32 UINT "Max number of SB message buffers in use."
+  APPEND_ITEM MAXPIPEDEPTHALLOWED 32 UINT "cFE Cfg Param CFE_SB_MAX_PIPE_DEPTH"
+  <% (1..64).each do |x| %>
+      APPEND_ITEM PIPEDEPTHSTATS_<%= x %> 64 UINT "Pipe Depth Statistics CFE_SB_PipeDepthStats_t. byte <%= x %>"
+  <% end %>
+  # The board sends 256 bytes more pipe statistics than this NOS3 definition lists. Not decoded
+  APPEND_ITEM EXTRA_PIPE_STATS 2048 BLOCK "Undecoded pipe depth statistics"
+
+TELEMETRY BUSOBC CFE_TBL_HK LITTLE_ENDIAN "Table Services Housekeeping Packet"
+  APPEND_ID_ITEM CCSDS_STREAMID 16 UINT 0x0804 "CCSDS Packet Identification" BIG_ENDIAN
+  APPEND_ITEM CCSDS_SEQUENCE 16 UINT "CCSDS Packet Sequence Control" BIG_ENDIAN
+  APPEND_ITEM CCSDS_LENGTH 16 UINT "CCSDS Packet Data Length" BIG_ENDIAN
+  APPEND_ITEM CCSDS_SECONDS 32 UINT "CCSDS Telemetry Secondary Header (seconds)" BIG_ENDIAN
+  APPEND_ITEM CCSDS_SUBSECS 16 UINT "CCSDS Telemetry Secondary Header (subseconds)" BIG_ENDIAN
+  APPEND_ITEM CCSDS_SPARE 32 UINT ""
+  APPEND_ITEM CMDCOUNTER 8 UINT "Count of valid commands received."
+  APPEND_ITEM ERRCOUNTER 8 UINT "Count of invalid commands received."
+  APPEND_ITEM NUMTABLES 16 UINT "Number of Tables Registered."
+  APPEND_ITEM NUMLOADPENDING 16 UINT "Number of Tables pending on Applications for their update."
+  APPEND_ITEM VALIDATIONCTR 16 UINT "Number of completed table validations."
+  APPEND_ITEM LASTVALCRC 32 UINT "Data Integrity Value computed for last table validated."
+  APPEND_ITEM LASTVALSTATUS 32 INT "Returned status from validation function for last table validated."
+  APPEND_ITEM ACTIVEBUFFER 8 UINT "Indicator of whether table buffer validated was 0=Inactive, 1=Active."
+  APPEND_ITEM LASTVALTABLENAME 320 STRING "Name of last table validated."
+  APPEND_ITEM SUCCESSVALCTR 8 UINT "Total number of successful table validations."
+  APPEND_ITEM FAILEDVALCTR 8 UINT "Total number of unsuccessful table validations."
+  APPEND_ITEM NUMVALREQUESTS 8 UINT "Number of times Table Services has requested validations from Apps."
+  APPEND_ITEM NUMFREESHAREDBUFS 8 UINT "Number of free Shared Working Buffers."
+  APPEND_ITEM BYTEALIGNPAD1 8 UINT "Spare byte to ensure longword alignment."
+  APPEND_ITEM MEMPOOLHANDLE 32 UINT "Handle to TBL's memory pool."
+  APPEND_ITEM LASTUPDATETIME_SECONDS 32 UINT "Number of seconds since epoch. (Parent: Time of last table update.)"
+  APPEND_ITEM LASTUPDATETIME_SUBSECONDS 32 UINT "Number of subseconds since epoch (LSB = 2^(-32) seconds). (Parent: Time of last table update.)"
+  APPEND_ITEM LASTUPDATEDTBL 320 STRING "Name of the last table updated."
+  APPEND_ITEM LASTFILELOADED 512 STRING "Path and Name of last table image file loaded."
+  APPEND_ITEM LASTFILEDUMPED 512 STRING "Path and Name of last file dumped to."
+  APPEND_ITEM LASTTABLELOADED 320 STRING "Name of the last table loaded."
+  APPEND_ITEM PADDING 16 UINT "Spare bytes to maintain byte alignment."
+
+TELEMETRY BUSOBC CFE_TIME_HK LITTLE_ENDIAN "Time Services Housekeeping Packet"
+  APPEND_ID_ITEM CCSDS_STREAMID 16 UINT 0x0805 "CCSDS Packet Identification" BIG_ENDIAN
+  APPEND_ITEM CCSDS_SEQUENCE 16 UINT "CCSDS Packet Sequence Control" BIG_ENDIAN
+  APPEND_ITEM CCSDS_LENGTH 16 UINT "CCSDS Packet Data Length" BIG_ENDIAN
+  APPEND_ITEM CCSDS_SECONDS 32 UINT "CCSDS Telemetry Secondary Header (seconds)" BIG_ENDIAN
+  APPEND_ITEM CCSDS_SUBSECS 16 UINT "CCSDS Telemetry Secondary Header (subseconds)" BIG_ENDIAN
+  APPEND_ITEM CCSDS_SPARE 32 UINT ""
+  APPEND_ITEM CMDCOUNTER 8 UINT "Time Command Execution Counter."
+  APPEND_ITEM ERRCOUNTER 8 UINT "Time Command Error Counter."
+  APPEND_ITEM CLOCKSTATEFLAGS 16 UINT "State Flags."
+  APPEND_ITEM CLOCKSTATEAPI 16 INT "API State."
+  APPEND_ITEM LEAPSECONDS 16 INT "Current Leaps Seconds."
+  APPEND_ITEM SECONDSMET 32 UINT "Current MET (seconds)."
+  APPEND_ITEM SUBSECSMET 32 UINT "Current MET (sub-seconds)."
+  APPEND_ITEM SECONDSSTCF 32 UINT "Current STCF (seconds)."
+  APPEND_ITEM SUBSECSSTCF 32 UINT "Current STCF (sub-seconds)."
+  APPEND_ITEM SECONDS1HZADJ 32 UINT "Current 1 Hz SCTF adjustment (seconds)."
+  APPEND_ITEM SUBSECS1HZADJ 32 UINT "Current 1 Hz SCTF adjustment (sub-seconds)."

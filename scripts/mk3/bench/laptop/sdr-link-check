@@ -1,0 +1,132 @@
+#!/usr/bin/env python3
+"""Rehearse the demo on the real bench: send each command through OpenC3, as the screen's buttons
+do, and check what comes back. Run it with sdr-link and daemond running. Prints PASS or FAIL per
+check and exits non-zero on any FAIL. It takes about 2 minutes. It closes and reopens the RS-422
+port, and leaves the Pi idle with its mission clock changed and the counters zeroed.
+"""
+import json, os, sys, time, urllib.request
+env = os.environ.get('OPENC3_DIR', os.path.expanduser('~/.nos3/openc3')) + '/.env'
+key = [l.split('=',1)[1].strip() for l in open(env) if l.startswith('OPENC3_SERVICE_PASSWORD')][0]
+def api(m, *p):
+    b = json.dumps({"jsonrpc":"2.0","method":m,"params":list(p),"id":1,"keyword_params":{"scope":"DEFAULT"}}).encode()
+    r = urllib.request.Request('http://localhost:2900/openc3-api/api', b, {'Authorization':key,'Content-Type':'application/json-rpc'})
+    d = json.load(urllib.request.urlopen(r, timeout=8))
+    if 'error' in d: raise RuntimeError(d['error'])
+    return d['result']
+t = lambda s: api('tlm', s)
+fails = 0
+def expect(name, got, want):
+    global fails
+    try:
+        ok = want(got) if callable(want) else got == want
+    except TypeError:
+        ok = False  # no telemetry yet: the value is None
+    fails += (not ok)
+    print(('PASS' if ok else 'FAIL'), name, '=', got)
+if t('PAYOBC HEARTBEAT MET_MS') is None:
+    sys.exit('No heartbeat in OpenC3 yet. Is sdr-link running, is SDR_LINK connected in CmdTlmServer, and is daemond running?')
+# Start from zero, whatever was clicked before this run
+api('cmd', 'BUSOBC PAYLOAD_IF_RESET_COUNTERS'); time.sleep(3)
+replies = lambda: api('get_tlm_cnts', [['PAYOBC', 'CMD_RESPONSE']])[0]
+c0 = replies()
+def send(cmd, wait=2.5):
+    global c0
+    api('cmd', cmd); time.sleep(wait)
+    c = replies()
+    expect('  a reply arrived for: ' + cmd, c, c0 + 1); c0 = c
+m0 = t('PAYOBC HEARTBEAT MET_MS'); n0 = t('PAYOBC HEARTBEAT RECEIVED_COUNT'); s0 = t('PAYOBC HEARTBEAT SEQUENCE_COUNT'); time.sleep(3)
+expect('heartbeat MET advances', t('PAYOBC HEARTBEAT MET_MS') - m0, lambda d: 2000 <= d <= 4000)
+expect('heartbeats keep arriving', t('PAYOBC HEARTBEAT RECEIVED_COUNT') - n0, lambda d: 2 <= d <= 4)
+expect('placeholder CPU_TEMP decodes in range', t('PAYOBC HEARTBEAT CPU_TEMP'), lambda v: 34.9 <= v <= 38)
+expect('STORAGE_MB decodes', t('PAYOBC HEARTBEAT STORAGE_MB'), 32000)
+send('PAYOBC RUN_EXPERIMENT with EXPERIMENT_ID 7')
+expect('reply opcode', t('PAYOBC CMD_RESPONSE OPCODE'), 0x20)
+expect('reply status', t('PAYOBC CMD_RESPONSE STATUS'), 'ACK')
+expect('state', t('PAYOBC HEARTBEAT OP_STATE'), 'EXPERIMENT_RUNNING')
+expect('experiment ID is 7 (0 means the argument layout is wrong)', t('PAYOBC HEARTBEAT EXPERIMENT_ID'), 7)
+send('PAYOBC TIME_SYNC_PING with MET_MS 5000000')
+expect('reply status', t('PAYOBC CMD_RESPONSE STATUS'), 'ACK')
+expect('MET jumped to the commanded value', t('PAYOBC HEARTBEAT MET_MS'), lambda v: 5000000 <= v <= 5005000)
+send('PAYOBC ANY_OPCODE with OPCODE 0x7E')
+expect('unknown opcode NACKed', t('PAYOBC CMD_RESPONSE STATUS'), 'NACK')
+send('PAYOBC ABORT_EXPERIMENT')
+expect('state back to idle', t('PAYOBC HEARTBEAT OP_STATE'), 'IDLE')
+expect('experiment cleared', t('PAYOBC HEARTBEAT EXPERIMENT_ID'), 0)
+send('PAYOBC EMERGENCY_HALT')
+expect('state fault', t('PAYOBC HEARTBEAT OP_STATE'), 'FAULT')
+send('PAYOBC ABORT_EXPERIMENT')
+send('PAYOBC GRANT_DCE_AUTHORITY'); send('PAYOBC REVOKE_DCE_AUTHORITY')
+b0 = t('BUSOBC PAYLOAD_IF_HK CMD_COUNT'); api('cmd','BUSOBC PAYLOAD_IF_NOOP'); time.sleep(3)
+expect('busOBC NOOP counted', t('BUSOBC PAYLOAD_IF_HK CMD_COUNT') - b0, 1)
+expect('link state', t('BUSOBC PAYLOAD_IF_HK LINK_ENABLED'), 'ENABLED')
+expect('frame errors', t('BUSOBC PAYLOAD_IF_HK FRAME_ERR_COUNT'), 0)
+
+# ---- More routes to the Pi: each upload must come back as an ACK carrying its transfer ID
+def upload(cmd, tid):
+    n = api('get_tlm_cnts', [['PAYOBC', 'BULK_RESPONSE']])[0]
+    api('cmd', f'PAYOBC {cmd} with TRANSFER_ID {tid}'); time.sleep(2.5)
+    expect(f'  {cmd} answered', api('get_tlm_cnts', [['PAYOBC', 'BULK_RESPONSE']])[0] - n, 1)
+    expect('  answer carries the transfer ID', t('PAYOBC BULK_RESPONSE TRANSFER_ID'), tid)
+    expect('  answer is ACK', t('PAYOBC BULK_RESPONSE STATUS'), 'ACK')
+upload('SEND_EXPERIMENT_TABLE', 4242)
+upload('SEND_CONTROL_ALGORITHM', 4343)
+for c in ('ADCS_TELEMETRY', 'ADCS_RESPONSE', 'BULK_ACK'):
+    api('cmd', f'PAYOBC {c}')
+
+# ---- Telemetry the Pi sends by itself. Its traffic cycle takes up to 30 s
+time.sleep(12)
+for p in ('ADCS_REQUEST_DCE', 'ADCS_TARGET_ORIENTATION', 'BULK_CALCULATION', 'BULK_FORCE_TORQUE', 'BULK_VIDEO'):
+    expect(f'{p} has been received', api('get_tlm_cnts', [['PAYOBC', p]])[0], lambda n: n > 0)
+
+# ---- Real busOBC housekeeping
+for c in ('ES', 'EVS', 'SB', 'TBL', 'TIME'):
+    api('cmd', f'BUSOBC CFE_{c}_SEND_HK')
+api('cmd', 'BUSOBC CFE_SB_SEND_STATS'); time.sleep(3)
+expect('apps running on the busOBC (ci_lab, to_lab, payload_if)', t('BUSOBC CFE_ES_HK REGISTEREDEXTERNALAPPS'), 3)
+expect('cFE major version is sane', t('BUSOBC CFE_ES_HK CFEMAJORVERSION'), lambda v: 1 <= v <= 20)
+expect('Software Bus pipes in use', t('BUSOBC CFE_SB_STATS PIPESINUSE'), lambda v: 3 <= v <= 64)
+s0 = t('BUSOBC CFE_TIME_HK SECONDSMET'); api('cmd', 'BUSOBC CFE_TIME_SEND_HK'); time.sleep(6); api('cmd', 'BUSOBC CFE_TIME_SEND_HK'); time.sleep(2)
+expect('busOBC mission time advances', t('BUSOBC CFE_TIME_HK SECONDSMET'), lambda v: 4 <= v - s0 <= 30)
+
+# ---- Faults: the real busOBC checks must count each of these
+def counter(name):
+    return t(f'BUSOBC PAYLOAD_IF_HK {name}')
+def fault(cmd, name, wait=3.5):
+    before = counter(name); api('cmd', cmd); time.sleep(wait)
+    expect(f'{cmd} moved {name} by one', counter(name) - before, 1)
+fault('PAYOBC BAD_APID', 'CMD_ERR_COUNT')
+expect('  and the event says why', t('BUSOBC EVENT MESSAGE'), lambda m: 'not allowed' in m)
+fault('PAYOBC BAD_PACKET', 'CMD_ERR_COUNT')
+expect('  and the event says why', t('BUSOBC EVENT MESSAGE'), lambda m: 'not one complete' in m)
+fault('BUSOBC PAYLOAD_IF_CONFIG', 'CMD_ERR_COUNT')
+fault('GROUND INJECT_BAD_CRC', 'FRAME_ERR_COUNT')
+fault('GROUND INJECT_BAD_LENGTH', 'FRAME_ERR_COUNT')
+fault('GROUND INJECT_BAD_PACKET', 'FRAME_ERR_COUNT')
+fault('GROUND INJECT_BAD_APID', 'CMD_ERR_COUNT')
+e0, h0 = counter('FRAME_ERR_COUNT'), api('get_tlm_cnts', [['PAYOBC', 'HEARTBEAT']])[0]
+api('cmd', 'GROUND INJECT_GARBAGE'); time.sleep(3.5)
+expect('line noise moved no error counter', counter('FRAME_ERR_COUNT') - e0, 0)
+expect('heartbeats kept arriving through it', api('get_tlm_cnts', [['PAYOBC', 'HEARTBEAT']])[0] - h0, lambda d: d >= 2)
+
+# ---- Take the link down by command and bring it back
+u0 = t('GROUND LINK_MONITOR UNANSWERED')
+api('cmd', 'BUSOBC PAYLOAD_IF_DISABLE'); time.sleep(3.5)
+expect('port closed', counter('LINK_ENABLED'), 'DISABLED')
+h0 = api('get_tlm_cnts', [['PAYOBC', 'HEARTBEAT']])[0]; time.sleep(3)
+expect('heartbeats stopped', api('get_tlm_cnts', [['PAYOBC', 'HEARTBEAT']])[0] - h0, 0)
+expect('link monitor noticed', t('GROUND LINK_MONITOR LINK_STATE'), lambda v: v in ('STALE', 'LOST'))
+e0 = counter('CMD_ERR_COUNT'); api('cmd', 'PAYOBC TIME_SYNC_PING with MET_MS 1000000'); time.sleep(5)
+expect('a command with the port closed moved CMD_ERR_COUNT', counter('CMD_ERR_COUNT') - e0, 1)
+expect('and counts as unanswered', t('GROUND LINK_MONITOR UNANSWERED') - u0, 1)
+time.sleep(6)
+expect('link monitor says LOST', t('GROUND LINK_MONITOR LINK_STATE'), 'LOST')
+api('cmd', 'BUSOBC PAYLOAD_IF_ENABLE'); time.sleep(4)
+expect('port open again', counter('LINK_ENABLED'), 'ENABLED')
+expect('link monitor says UP', t('GROUND LINK_MONITOR LINK_STATE'), 'UP')
+h0 = api('get_tlm_cnts', [['PAYOBC', 'HEARTBEAT']])[0]; time.sleep(3)
+expect('heartbeats resumed', api('get_tlm_cnts', [['PAYOBC', 'HEARTBEAT']])[0] - h0, lambda d: d >= 2)
+
+# Leave the screens clean for the demo
+api('cmd', 'BUSOBC PAYLOAD_IF_RESET_COUNTERS'); time.sleep(3)
+print('Failed checks:', fails)
+sys.exit(1 if fails else 0)

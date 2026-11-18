@@ -1,0 +1,10 @@
+TARGET BUSOBC BUSOBC
+TARGET PAYOBC PAYOBC
+TARGET GROUND GROUND
+
+# sdr-link runs on the laptop itself: commands reach it through the Docker host gateway, and
+# it sends telemetry to the operator's published UDP port 5013
+INTERFACE SDR_LINK udp_interface.rb host.docker.internal 5012 5013 nil nil 128 10.0 nil
+  MAP_TARGET BUSOBC
+  MAP_TARGET PAYOBC
+  MAP_TARGET GROUND

@@ -1014,8 +1014,8 @@ int32 PAYLOAD_IF_VerifyCmdLength(CFE_MSG_Message_t *msg, uint16 expected_length)
         CFE_MSG_GetFcnCode(msg, &cmd_code);
 
         CFE_EVS_SendEvent(PAYLOAD_IF_LEN_ERR_EID, CFE_EVS_EventType_ERROR,
-                          "Invalid msg length: ID = 0x%X,  CC = %d, Len = %ld, Expected = %d",
-                          CFE_SB_MsgIdToValue(msg_id), cmd_code, actual_length, expected_length);
+                          "Invalid msg length: ID = 0x%X,  CC = %d, Len = %lu, Expected = %d",
+                          CFE_SB_MsgIdToValue(msg_id), cmd_code, (unsigned long)actual_length, expected_length);
 
         status = OS_ERROR;
 

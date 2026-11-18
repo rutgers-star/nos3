@@ -1,0 +1,40 @@
+#!/usr/bin/env python3
+"""Make the Pi put a bad frame on the real RS-422 line, to exercise the busOBC receive checks.
+
+Usage: link-fault bad-crc | bad-length | bad-packet | bad-apid | garbage
+
+It writes straight to the Pi's link UART over ssh, beside daemond. One write per frame, so it
+can't split a frame daemond is sending. OpenC3's GROUND INJECT_ commands run this through sdr-link.
+"""
+import binascii
+import os
+import shlex
+import struct
+import subprocess
+import sys
+
+SYNC = bytes.fromhex("1ACFFC1D")
+PI_EXEC = os.environ.get("PI_EXEC", "ssh -T -o BatchMode=yes -o ConnectTimeout=5 sloshuser@192.168.1.9")
+REMOTE = ("pgrep -x Communications > /dev/null || stty -F {uart} 115200 raw -echo; "
+          "python3 -c 'import os,sys; fd=os.open(sys.argv[1],os.O_WRONLY|os.O_NOCTTY); "
+          "os.write(fd,bytes.fromhex(sys.argv[2]))' {uart} {hex}")
+
+
+def frame(body, flip_crc=False):
+    length = struct.pack(">H", len(body))
+    crc = binascii.crc_hqx(length + body, 0xFFFF)
+    return SYNC + length + body + struct.pack(">H", crc ^ (0xFFFF if flip_crc else 0))
+
+
+FAULTS = {
+    "bad-crc": frame(bytes.fromhex("0011C0000001ABCD"), flip_crc=True),
+    "bad-length": SYNC + bytes.fromhex("0001"),
+    "bad-packet": frame(bytes.fromhex("0011C0000009ABCD")),
+    "bad-apid": frame(bytes.fromhex("0010C0000001ABCD")),
+    "garbage": bytes(range(0x20, 0x60)),
+}
+
+if len(sys.argv) != 2 or sys.argv[1] not in FAULTS:
+    sys.exit(__doc__)
+command = REMOTE.format(uart=os.environ.get("UART", "/dev/ttyS0"), hex=FAULTS[sys.argv[1]].hex())
+sys.exit(subprocess.call(shlex.split(PI_EXEC) + ["sh", "-c", shlex.quote(command)]))

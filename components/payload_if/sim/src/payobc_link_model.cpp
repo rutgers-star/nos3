@@ -7,11 +7,7 @@
 
 namespace Nos3
 {
-    const std::size_t PayObcLinkModel::STATUS_USER_DATA_LEN;
     const std::size_t PayObcLinkModel::CCSDS_PRIMARY_HEADER_LEN;
-    const std::size_t PayObcLinkModel::STATUS_PACKET_LEN;
-    const std::uint8_t PayObcLinkModel::REPORT_COMMAND;
-    const std::uint8_t PayObcLinkModel::REPORT_REQUESTED;
 
     namespace
     {
@@ -25,6 +21,11 @@ namespace Nos3
         const std::uint16_t CCSDS_SEQ_FLAGS_MASK = 0xC000;
         const std::uint16_t CCSDS_SEQ_FLAGS_UNSEGMENTED = 0xC000;
         const std::uint16_t CCSDS_SEQ_COUNT_MASK = 0x3FFF;
+        const std::size_t COMMAND_DATA_LEN = 5;
+        const std::uint64_t HEARTBEAT_PERIOD_US = 1000000;
+        const std::uint8_t IDLE = 0x00;
+        const std::uint8_t EXPERIMENT_RUNNING = 0x01;
+        const std::uint8_t FAULT = 0xFF;
 
         std::uint16_t read_be16(const std::uint8_t *p)
         {
@@ -37,9 +38,15 @@ namespace Nos3
             out.push_back(static_cast<std::uint8_t>(value & 0xFF));
         }
 
-        std::uint16_t low16(std::uint32_t value)
+        std::uint32_t read_be32(const std::uint8_t *p)
         {
-            return static_cast<std::uint16_t>(value & 0xFFFF);
+            return (static_cast<std::uint32_t>(read_be16(p)) << 16) | read_be16(p + 2);
+        }
+
+        void append_be32(std::vector<std::uint8_t> &out, std::uint32_t value)
+        {
+            append_be16(out, static_cast<std::uint16_t>(value >> 16));
+            append_be16(out, static_cast<std::uint16_t>(value));
         }
 
         std::string hex_bytes(const std::uint8_t *data, std::size_t len)
@@ -77,6 +84,10 @@ namespace Nos3
         plframe_decode_init(&_decoder);
         _counters = PayObcLinkCounters();
         _tx_sequence_count = static_cast<std::uint16_t>(seed & CCSDS_SEQ_COUNT_MASK);
+        _met_us = 0;
+        _heartbeat_elapsed_us = 0;
+        _op_state = IDLE;
+        _experiment_id = 0;
         _tx_queue.clear();
         _fault_corrupt_crc = false;
         _fault_split = false;
@@ -165,39 +176,97 @@ namespace Nos3
 
     void PayObcLinkModel::handle_command(const std::uint8_t *body, std::size_t len)
     {
-        /*
-        ** ICD section 5.2 layout: opcode (1 byte) then a uint16 command counter.
-        ** Shorter commands are still accepted; missing fields report as zero.
-        */
-        const std::uint8_t *user_data = &body[CCSDS_PRIMARY_HEADER_LEN];
-        const std::size_t user_len = len - CCSDS_PRIMARY_HEADER_LEN;
-        const std::uint8_t opcode = user_len >= 1 ? user_data[0] : 0;
-        const std::uint16_t command_counter = user_len >= 3 ? read_be16(&user_data[1]) : 0;
+        /* PiDaemon uses exactly one opcode byte followed by a big-endian argument. */
+        if (len != CCSDS_PRIMARY_HEADER_LEN + COMMAND_DATA_LEN)
+        {
+            _counters.packets_malformed++;
+            log("dropped packet: PayOBC command must have 5 data bytes");
+            return;
+        }
+
+        const std::uint8_t *data = &body[CCSDS_PRIMARY_HEADER_LEN];
+        const std::uint8_t opcode = data[0];
+        const std::uint32_t argument = read_be32(data + 1);
+        std::uint8_t result = 0; /* ACK */
+
+        switch (opcode)
+        {
+            case 0x01: /* Grant DCE authority */
+            case 0x02: /* Revoke DCE authority */
+                break;
+            case 0x03: /* Time sync */
+                _met_us = static_cast<std::uint64_t>(argument) * 1000;
+                break;
+            case 0x20: /* Run experiment */
+                if (argument == 0 || argument > 255)
+                {
+                    result = 1;
+                    break;
+                }
+                _op_state = EXPERIMENT_RUNNING;
+                _experiment_id = static_cast<std::uint8_t>(argument);
+                break;
+            case 0x21: /* Abort experiment */
+                _op_state = IDLE;
+                _experiment_id = 0;
+                break;
+            case 0xFF: /* Emergency halt */
+                _op_state = FAULT;
+                _experiment_id = 0;
+                break;
+            default:
+                result = 1; /* NACK */
+                break;
+        }
 
         _counters.commands_accepted++;
         log("accepted command packet " + hex_bytes(body, len));
-        emit_status(REPORT_COMMAND, opcode, command_counter);
+        emit_telemetry(STAR_APID_PAYLOAD_COMMAND_RESPONSE, {opcode, result}, true);
     }
 
-    void PayObcLinkModel::request_status(void)
+    void PayObcLinkModel::advance_time(std::uint64_t elapsed_us)
     {
-        emit_status(REPORT_REQUESTED, 0, 0);
+        _met_us += elapsed_us;
+        _heartbeat_elapsed_us += elapsed_us;
+        if (_heartbeat_elapsed_us >= HEARTBEAT_PERIOD_US)
+        {
+            _heartbeat_elapsed_us %= HEARTBEAT_PERIOD_US;
+            emit_heartbeat(false);
+        }
     }
 
-    void PayObcLinkModel::emit_status(std::uint8_t report_type, std::uint8_t opcode, std::uint16_t command_counter)
+    void PayObcLinkModel::request_heartbeat(void)
     {
-        std::vector<std::uint8_t> frames = encode_frame(build_status_packet(report_type, opcode, command_counter));
+        emit_heartbeat(true);
+    }
+
+    void PayObcLinkModel::emit_heartbeat(bool apply_faults)
+    {
+        std::vector<std::uint8_t> data;
+        const std::uint64_t met_ms = _met_us / 1000;
+        append_be32(data, static_cast<std::uint32_t>(met_ms >> 32));
+        append_be32(data, static_cast<std::uint32_t>(met_ms));
+        data.push_back(_op_state);
+        data.push_back(_experiment_id);
+        append_be32(data, 0x42100000); /* 36.0 Celsius as IEEE-754 binary32 */
+        append_be32(data, 32000);     /* Simulated free storage in MB */
+        emit_telemetry(STAR_APID_PAYLOAD_TELEMETRY, data, apply_faults);
+    }
+
+    void PayObcLinkModel::emit_telemetry(std::uint16_t apid, const std::vector<std::uint8_t> &data, bool apply_faults)
+    {
+        std::vector<std::uint8_t> frames = encode_telemetry(apid, data, apply_faults);
         const std::size_t first_frame_len = frames.size();
         std::size_t split_at = 0;
 
-        if (_fault_double)
+        if (apply_faults && _fault_double)
         {
-            std::vector<std::uint8_t> second = encode_frame(build_status_packet(report_type, opcode, command_counter));
+            std::vector<std::uint8_t> second = encode_telemetry(apid, data, true);
             frames.insert(frames.end(), second.begin(), second.end());
             _fault_double = false;
         }
 
-        if (_fault_split)
+        if (apply_faults && _fault_split)
         {
             /* The split applies to the first frame; a doubled second frame follows it directly */
             split_at = _fault_split_len == 0 ? first_frame_len / 2 : _fault_split_len;
@@ -208,52 +277,39 @@ namespace Nos3
         queue_frames(frames, split_at);
     }
 
-    std::vector<std::uint8_t> PayObcLinkModel::build_status_packet(std::uint8_t report_type, std::uint8_t opcode,
-                                                                   std::uint16_t command_counter)
+    std::vector<std::uint8_t> PayObcLinkModel::encode_telemetry(std::uint16_t apid, const std::vector<std::uint8_t> &data,
+                                                               bool apply_faults)
     {
         std::vector<std::uint8_t> packet;
-        std::uint16_t apid = STAR_APID_PAYLOAD_TELEMETRY;
-        std::uint16_t length_field = STATUS_USER_DATA_LEN - 1;
+        std::uint16_t length_field = static_cast<std::uint16_t>(data.size() - 1);
 
-        if (_fault_bad_apid)
+        if (apply_faults && _fault_bad_apid)
         {
             /* A real APID in the wrong direction: BusOBC -> PayOBC only */
             apid = STAR_APID_PAYLOAD_COMMAND;
             _fault_bad_apid = false;
         }
-        if (_fault_bad_length)
+        if (apply_faults && _fault_bad_length)
         {
             length_field++;
             _fault_bad_length = false;
         }
 
-        packet.reserve(STATUS_PACKET_LEN);
+        packet.reserve(CCSDS_PRIMARY_HEADER_LEN + data.size());
 
         /* ICD RevB D6: telemetry type, no secondary header, unsegmented */
         append_be16(packet, apid);
         append_be16(packet, static_cast<std::uint16_t>(CCSDS_SEQ_FLAGS_UNSEGMENTED | _tx_sequence_count));
         append_be16(packet, length_field);
 
-        packet.push_back(report_type);
-        packet.push_back(opcode);
-        append_be16(packet, command_counter);
-        append_be16(packet, low16(_counters.commands_accepted));
-        append_be16(packet, low16(_counters.frames_bad_crc));
-        append_be16(packet, low16(_counters.frames_resync));
-        append_be16(packet, low16(_counters.packets_malformed));
-        append_be16(packet, low16(_counters.packets_disallowed));
+        packet.insert(packet.end(), data.begin(), data.end());
 
         _tx_sequence_count = static_cast<std::uint16_t>((_tx_sequence_count + 1) & CCSDS_SEQ_COUNT_MASK);
-        return packet;
-    }
-
-    std::vector<std::uint8_t> PayObcLinkModel::encode_frame(const std::vector<std::uint8_t> &packet)
-    {
         std::vector<std::uint8_t> frame(PL_MAX_FRAME_LEN);
         const std::size_t frame_len = plframe_encode(packet.data(), packet.size(), frame.data());
 
         frame.resize(frame_len);
-        if (frame_len > 0 && _fault_corrupt_crc)
+        if (frame_len > 0 && apply_faults && _fault_corrupt_crc)
         {
             frame[frame_len - 1] ^= 0xFF;
             _fault_corrupt_crc = false;

@@ -1,0 +1,14 @@
+CFE_LIB, hwlib,                     hwlib_Init,               HW_LIB,           0,  0,     0x0, 0;
+
+CFE_APP, ci_lab,                    CI_Lab_AppMain,           CI_LAB_APP,       80, 16384, 0x0, 0;
+CFE_APP, to_lab,                    TO_LAB_AppMain,           TO_LAB_APP,       81, 32768, 0x0, 0;
+CFE_APP, payload_if,                PAYLOAD_IF_AppMain,       PAYLOAD_IF,       86, 32768, 0x0, 0;
+!
+! Startup script for the MK3 link profile, installed in place of
+! cpu1_cfe_es_startup.scr by cpu1/install_custom.cmake.
+!
+! Only the apps that work on the real board are started: the payload link
+! (payload_if, through hwlib's Linux UART driver on /dev/ttyS3, J14) and the lab
+! command/telemetry apps, which sbtool drives over the loopback interface.
+! CryptoLib is left out because the board has no libgcrypt, and the NOS3
+! component apps are left out because they expect the simulators.

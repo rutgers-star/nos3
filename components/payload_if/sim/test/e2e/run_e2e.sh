@@ -95,7 +95,7 @@ DRIVER_STATUS=$?
 SIM_LOG="$LOG_DIR/$PREFIX-sim.log"
 $DCALL logs $PREFIX-sim > "$SIM_LOG" 2>&1
 SIM_STATUS=0
-for packet in 1010C000000620000100000001 1010C001000620000200000001; do
+for packet in 1010C00000042000000001 1010C00100042000000002 1010C00F0004200000000E; do
     if grep -q "accepted command packet $packet" "$SIM_LOG"; then
         echo "PASS  simulator received unchanged command packet $packet"
     else

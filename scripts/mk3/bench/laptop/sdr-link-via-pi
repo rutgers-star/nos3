@@ -1,0 +1,24 @@
+#!/bin/bash
+#
+# Run sdr-link on this laptop with the debug cable plugged into the bench Pi instead.
+# Only the console crosses the network, over ssh; OpenC3 and sdr-link are unchanged.
+#
+HERE=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)
+PI=${PI:-sloshuser@192.168.1.9}
+SSH="ssh -T -o BatchMode=yes -o ConnectTimeout=5 -o ServerAliveInterval=5"
+CONSOLE=$(mktemp -u /tmp/sdr-console.XXXXXX)
+
+$SSH "$PI" 'cat > /tmp/console-relay' < "$HERE/../pi/console-relay" || exit 1
+if [ -z "$SDR_DEV" ] && ! $SSH "$PI" 'ls /dev/ttyUSB*' > /dev/null 2>&1; then
+    echo "No debug cable found on the Pi. Is it plugged into one of the Pi's USB ports?" >&2
+    exit 1
+fi
+
+socat PTY,link="$CONSOLE",rawer EXEC:"$SSH $PI python3 -u /tmp/console-relay $SDR_DEV" &
+RELAY=$!
+trap 'kill $RELAY 2> /dev/null' EXIT
+for _ in $(seq 1 50); do
+    [ -e "$CONSOLE" ] && break
+    sleep 0.1
+done
+"$HERE/sdr-link" --console "$CONSOLE"

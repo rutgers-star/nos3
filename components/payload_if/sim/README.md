@@ -45,65 +45,72 @@ Input:
   - The CCSDS length field agrees with the body length.
   - Sequence flags are `11` (unsegmented).
   - The APID passes `star_payload_apid_allowed_bus_to_pay()`.
-- APID `0x010` must also be a telecommand with no secondary header (ICD RevB D6).
+- APID `0x010` must also be a telecommand with no secondary header (ICD RevB D6)
+  and have exactly five data bytes: an opcode and a big-endian uint32 argument.
 - Other allowed APIDs are counted as unhandled and get no response.
 
 Output:
 
-- Every accepted `0x010` command produces one status packet on APID `0x011`.
+- Every well-formed `0x010` command produces one response on APID `0x012`.
+- While enabled, the simulator emits a heartbeat on APID `0x011` once per
+  simulated second.
 - Output is queued and written on NOS time ticks at no more than the UART line
   rate: `baud / 10` bytes per second (8N1), 115200 baud by default. A response
   larger than one tick's budget leaves in several writes.
 
-## Status telemetry (APID 0x011)
+## Pi command response and heartbeat
 
-Primary header: `00 11`, with telemetry type and no secondary header (ICD RevB
-D6). Sequence flags are `11`. The 14-bit sequence count starts at the reset seed
-and increments for every packet sent. User data is 14 bytes, big-endian:
+The simulator uses the wire format in the Pi bench OpenC3 definitions. Command
+responses use primary header packet ID `00 12` and two data bytes: the opcode
+and result (`00` ACK, `01` NACK). The model handles DCE authority grant/revoke
+(ACK), time sync, run/abort experiment, and emergency halt. An unknown opcode is
+NACKed. The authority commands acknowledge receipt without modeling attitude control.
+
+The heartbeat uses packet ID `00 11`. Both packets use telemetry type, no
+secondary header, and unsegmented sequence flags. One 14-bit sequence count
+starts at the reset seed and increments across both packet types. Heartbeat data
+is 18 bytes, big-endian:
 
 | Offset | Size | Field |
 |---:|---:|---|
-| 0 | 1 | Report type: `01` command response, `02` requested through sim control |
-| 1 | 1 | Opcode of the command (first user-data byte), 0 if none |
-| 2 | 2 | Command counter echoed from user-data bytes 1-2 (ICD section 5.2), 0 if absent |
-| 4 | 2 | Commands accepted since reset |
-| 6 | 2 | Frames dropped for bad CRC |
-| 8 | 2 | Frames dropped for invalid payload-link length |
-| 10 | 2 | Packets dropped as malformed CCSDS |
-| 12 | 2 | Packets dropped by the APID allowlist |
+| 0 | 8 | Mission elapsed time in milliseconds |
+| 8 | 1 | Operating state: idle `00`, running `01`, fault `FF` |
+| 9 | 1 | Active experiment ID, zero if none |
+| 10 | 4 | CPU temperature as IEEE-754 binary32 (simulated 36 °C) |
+| 14 | 4 | Storage in MB (simulated 32000) |
 
-Counters are reported modulo 65536. The commands-accepted count and the
-sequence count prove the simulator processed a command rather than echoing it.
+Use the `COUNTERS` simulator command for decoder and packet statistics.
 
 ## Packet vectors
 
-After `RESET=0`, the ICD RevB A1 frame test vector:
+With sequence seed 0 and no intervening heartbeat, Run Experiment with ID 1
+and its ACK:
 
 ```text
-command  1A CF FC 1D 00 0D 10 10 C0 00 00 06 20 00 01 00 00 00 01 9B BA
-response 1A CF FC 1D 00 14 00 11 C0 00 00 0D 01 20 00 01 00 01 00 00 00 00 00 00 00 00 F3 68
+command  1A CF FC 1D 00 0B 10 10 C0 00 00 04 20 00 00 00 01 09 CF
+response 1A CF FC 1D 00 08 00 12 C0 00 00 01 20 00 10 B8
 ```
 
-The next command (sequence 1, command counter 2):
+The next command (sequence 1, experiment ID 2):
 
 ```text
-command  1A CF FC 1D 00 0D 10 10 C0 01 00 06 20 00 02 00 00 00 01 1A 2D
-response 1A CF FC 1D 00 14 00 11 C0 01 00 0D 01 20 00 02 00 02 00 00 00 00 00 00 00 00 B6 34
+command  1A CF FC 1D 00 0B 10 10 C0 01 00 04 20 00 00 00 02 7E 7F
+response 1A CF FC 1D 00 08 00 12 C0 01 00 01 20 00 BA E9
 ```
 
-These were computed independently with Python `binascii.crc_hqx`, not with the
-code under test. The first command matches the frame in the ICD.
+The CRCs were computed independently with Python `binascii.crc_hqx`.
 
 ## Simulator control
 
 Commands go to command node `payload_if-command`, for example through the sim
 command bus bridge. The definitions are in `../gsw/PAYLOAD_IF_SIM_CMD.txt`. Fault
-controls are one-shot and apply to the next outgoing frame or packet.
+controls are one-shot and apply to the next command response or requested
+heartbeat. Periodic heartbeats leave these faults pending.
 
 | Command | Effect |
 |---|---|
-| `RESET[=SEED]` | Clear counters, decoder, transmit queue, and pending faults. Set the sequence count to `SEED` (decimal or `0x` hex, 0 to 0x3FFF). Without a seed, reuse the last one. |
-| `SEND_STATUS` | Queue one status packet with report type `02`. |
+| `RESET[=SEED]` | Reset the clock and experiment state. Clear counters, decoder, transmit queue, and pending faults. Set the sequence count to `SEED` (decimal or `0x` hex, 0 to 0x3FFF). Without a seed, reuse the last one. |
+| `SEND_STATUS` | Queue one heartbeat immediately. |
 | `CORRUPT_CRC` | Invert the last CRC byte of the next frame. |
 | `SPLIT[=BYTES]` | Split the next frame across UART writes after `BYTES` bytes (default: half). |
 | `DOUBLE` | Send the next telemetry as two valid frames (consecutive sequence counts) in one write. Combined with `CORRUPT_CRC`, it gives a bad frame followed by a good one. |
@@ -129,8 +136,8 @@ docker run --rm -u $(id -u):$(id -g) -v $PWD:$PWD -w $PWD ivvitc/nos3-64:2026061
 
 They cover:
 
-- Literal command and response vectors, and deterministic sequence counts.
-- Minimum and maximum body sizes, and invalid payload-link lengths.
+- Literal command and response vectors, heartbeat fields, and deterministic sequence counts.
+- Rejection of wrong command sizes and invalid payload-link lengths.
 - Frames split at every byte boundary, and combined frames.
 - Garbage before sync, and a bad CRC followed by a valid frame.
 - CCSDS length and header errors, and allowed and disallowed APIDs.
@@ -149,7 +156,7 @@ simulator, and the sim command bus bridge, on a private Docker network. Then
 
 - Injects commands through CI_LAB (UDP 5012).
 - Receives telemetry through TO_LAB (UDP 5013).
-- Checks literal packets for the normal exchange, state change, bad CRC
+- Checks wrapped replies, heartbeat fields, state changes, bad CRC
   recovery, split and doubled frames, length and APID rejection, the old `0x0010`
   message ID, reset, and PAYLOAD_IF disable and re-enable.
 
@@ -169,20 +176,18 @@ make launch            # or: make launch HEADLESS=1 COMPONENTS="payload_if radio
 In the OpenC3 UI (http://localhost:2900):
 
 1. **Command Sender**: send `PAYLOAD_IF_DEBUG PAYLOAD_IF_ENABLE_CC`.
-2. **Command Sender**: send `PAYLOAD_IF_DEBUG PAYOBC_CMD`. With its defaults
-   (opcode `0x20`, counter 1, argument 1) the PayOBC packet inside it is the ICD
-   RevB A1 packet.
-3. **Packet Viewer**: `PAYLOAD_IF_DEBUG PAYOBC_STATUS` shows the decoded reply:
-   sequence count, echoed opcode and counter, accepted commands, and the
-   PayOBC's error counters. `CCSDS_SECONDS`/`CCSDS_SUBSECS` hold the BusOBC time
-   at which PAYLOAD_IF received it.
-
-Payload APIDs never cross the space link. `PAYOBC_CMD` is a PAYLOAD_IF forward
-command (code 6) with the PayOBC packet as its data, and `PAYOBC_STATUS` arrives
-inside PAYLOAD_IF's wrapper message `0x0862`. On board, PAYLOAD_IF still sends and
-publishes the PayOBC packets unchanged (contract: payload ground interface).
+2. **Command Sender**: send `PAYLOAD_IF_DEBUG PAYOBC_CMD`. The defaults run
+   experiment 1 (opcode `0x20`, argument 1).
+3. **Packet Viewer**: `PAYLOAD_IF_DEBUG PAYOBC_CMD_RESPONSE` shows the echoed
+   opcode and ACK/NACK. `PAYLOAD_IF_DEBUG PAYOBC_HEARTBEAT` shows the elapsed
+   time and active experiment. Both show the BusOBC receive timestamp in
+   `CCSDS_SECONDS` and `CCSDS_SUBSECS`.
 4. **Command Sender**, target `SIM_CMDBUS_BRIDGE`: the `PAYLOAD_IF_SIM_*`
    commands reset the simulator and inject faults (see Simulator control).
+
+`PAYOBC_CMD` carries the complete PayOBC packet in a PAYLOAD_IF forward command
+(code 6). The heartbeat and response arrive inside PAYLOAD_IF wrapper message
+`0x0862`, with the inner bytes unchanged.
 
 The `_DEBUG` targets use CI_LAB and TO_LAB directly. The `_RADIO` targets go
 through CryptoLib and the radio simulator, and their downlink starts only
